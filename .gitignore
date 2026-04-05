@@ -36,3 +36,6 @@ __pycache__/
 .vast_containerlabel
 hasbooted
 ports.log
+
+# ── Claude resume file ────────────────────────────────────────────────────────
+resume
