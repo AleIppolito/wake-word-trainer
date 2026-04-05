@@ -1,0 +1,36 @@
+# ── Venv ──────────────────────────────────────────────────────────────────────
+venv/
+.venv/
+
+# ── Dataset e feature (scaricati da 01_setup_and_download.py) ─────────────────
+*.npy
+audioset/
+audioset_16k/
+fma/
+mit_rirs/
+MIT_environmental_impulse_responses/
+
+# ── Repo clonati dagli script ─────────────────────────────────────────────────
+openwakeword/
+piper-sample-generator/
+
+# ── Output training ───────────────────────────────────────────────────────────
+my_custom_model/
+
+# ── Registrazioni personali ───────────────────────────────────────────────────
+real_recordings/
+hey_murph_recordings/
+
+# ── Log e file temporanei ─────────────────────────────────────────────────────
+output.log
+*.log
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+
+# ── Vast.ai ───────────────────────────────────────────────────────────────────
+.vast_api_key
+.vast_containerlabel
+hasbooted
+ports.log
