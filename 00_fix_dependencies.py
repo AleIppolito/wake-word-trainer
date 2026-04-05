@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Applica patch a librerie installate che hanno bug su Python 3.12.
-Da eseguire UNA VOLTA dopo: pip install -r requirements.txt
+Apply patches to installed libraries that have bugs on Python 3.12.
+Run ONCE after: pip install -r requirements.txt
 
-Patch applicate:
-  1. pronouncing: usa pkg_resources (rimosso in 3.12) -> sostituito con importlib.resources
-  2. acoustics:   sph_harm rinominata in scipy >= 1.15 -> sph_harm_y
+Patches applied:
+  1. pronouncing: uses pkg_resources (removed in 3.12) -> replaced with importlib.resources
+  2. acoustics:   sph_harm renamed in scipy >= 1.15 -> sph_harm_y
 """
 
 import subprocess
@@ -18,11 +18,11 @@ def run(cmd, ignore_error=False):
     print(f"\n$ {cmd}")
     result = subprocess.run(cmd, shell=True)
     if result.returncode != 0 and not ignore_error:
-        print(f"[WARN] codice di uscita {result.returncode}")
+        print(f"[WARN] exit code {result.returncode}")
 
 
 def find_site_packages():
-    """Trova il percorso site-packages del venv corrente."""
+    """Returns the site-packages path for the current venv."""
     for p in site.getsitepackages():
         if "site-packages" in p:
             return Path(p)
@@ -49,12 +49,12 @@ if target.exists():
     )
     print(result.stdout.strip() or result.stderr.strip())
 else:
-    print(f"[SKIP] {target} non trovato")
+    print(f"[SKIP] {target} not found")
 
 # ── 2. acoustics ──────────────────────────────────────────────────────────────
 # ImportError: cannot import name 'sph_harm' from 'scipy.special'
 # File: acoustics/directivity.py line 20: from scipy.special import sph_harm
-print("\n=== Fix 2: acoustics (sph_harm -> sph_harm_y per scipy >= 1.15) ===")
+print("\n=== Fix 2: acoustics (sph_harm -> sph_harm_y for scipy >= 1.15) ===")
 target = sp / "acoustics" / "directivity.py"
 if target.exists():
     run(
@@ -67,7 +67,7 @@ if target.exists():
     )
     print(result.stdout.strip() or result.stderr.strip())
 else:
-    print(f"[SKIP] {target} non trovato")
+    print(f"[SKIP] {target} not found")
 
-print("\n=== Patch completate ===")
-print("Procedi con: python 01_setup_and_download.py")
+print("\n=== Patches applied ===")
+print("Next: python 01_setup_and_download.py")

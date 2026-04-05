@@ -1,19 +1,19 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Hey Murph - openWakeWord trainer
+# Custom Wake Word - openWakeWord trainer
 # Python 3.12 + CUDA 13.0
 #
-# Installazione:
-#   python -m venv /venv/main
-#   source /venv/main/bin/activate
+# Install:
+#   python -m venv venv
+#   source venv/bin/activate
 #   pip install -r requirements.txt
-#   python 00_fix_dependencies.py     # applica patch post-install
-#   python 01_setup_and_download.py   # clona repo + scarica dataset (~17 GB, una tantum)
+#   python 00_fix_dependencies.py     # apply post-install patches
+#   python 01_setup_and_download.py   # clone repos + download datasets (~17 GB, once)
 #   python 02_training.py
 #
-# NON inclusi qui (gestiti da 01_setup_and_download.py):
-#   - openwakeword         → pip install -e ./openwakeword --no-deps  (dopo git clone)
-#   - piper-phonemize-cross / piper-tts  → per piper-sample-generator
-#   - datasets / deep-phonemizer         → per il download del dataset
+# NOT included here (managed by 01_setup_and_download.py):
+#   - openwakeword          → pip install -e ./openwakeword --no-deps  (after git clone)
+#   - piper-phonemize-cross / piper-tts  → for piper-sample-generator
+#   - datasets / deep-phonemizer         → for dataset download
 # ─────────────────────────────────────────────────────────────────────────────
 
 --extra-index-url https://download.pytorch.org/whl/cu130

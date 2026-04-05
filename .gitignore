@@ -2,7 +2,7 @@
 venv/
 .venv/
 
-# ── Dataset e feature (scaricati da 01_setup_and_download.py) ─────────────────
+# ── Datasets and features (downloaded by 01_setup_and_download.py) ─────────────
 *.npy
 audioset/
 audioset_16k/
@@ -10,18 +10,20 @@ fma/
 mit_rirs/
 MIT_environmental_impulse_responses/
 
-# ── Repo clonati dagli script ─────────────────────────────────────────────────
+# ── Repos cloned by scripts ───────────────────────────────────────────────────
 openwakeword/
 piper-sample-generator/
 
-# ── Output training ───────────────────────────────────────────────────────────
+# ── Training output ───────────────────────────────────────────────────────────
 my_custom_model/
 
-# ── Registrazioni personali ───────────────────────────────────────────────────
-real_recordings/
-hey_murph_recordings/
+# ── Generated training config (auto-written by 02_training.py) ────────────────
+my_model.yaml
 
-# ── Log e file temporanei ─────────────────────────────────────────────────────
+# ── Voice recordings ──────────────────────────────────────────────────────────
+real_recordings/
+
+# ── Logs and temp files ───────────────────────────────────────────────────────
 output.log
 *.log
 __pycache__/

@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-STEP 1 - Setup piper-sample-generator + download dataset
-Da eseguire UNA VOLTA SOLA. Se i dati sono già scaricati salta tutto.
+STEP 1 - Set up piper-sample-generator and download datasets.
+Run ONCE. Skips anything already downloaded.
 
-Prerequisiti:
+Prerequisites:
   pip install -r requirements.txt
   python 00_fix_dependencies.py
 
 Output:
   - ./piper-sample-generator/     (TTS engine)
-  - ./openwakeword/               (framework training)
+  - ./openwakeword/               (training framework)
   - ./mit_rirs/                   (Room Impulse Responses)
   - ./audioset_16k/               (background noise)
-  - ./fma/                        (musica background)
-  - ./openwakeword_features_ACAV100M_2000_hrs_16bit.npy  (~17GB, training features)
-  - ./validation_set_features.npy (~180MB, validation features)
+  - ./fma/                        (background music)
+  - ./openwakeword_features_ACAV100M_2000_hrs_16bit.npy  (~17 GB, training features)
+  - ./validation_set_features.npy (~180 MB, validation features)
 """
 
 import os
@@ -27,7 +27,7 @@ def run(cmd, ignore_error=False):
     print(f"\n$ {cmd}")
     result = subprocess.run(cmd, shell=True)
     if result.returncode != 0 and not ignore_error:
-        print(f"[WARN] codice di uscita {result.returncode}")
+        print(f"[WARN] exit code {result.returncode}")
 
 
 def fix_locale():
@@ -45,12 +45,12 @@ if not os.path.exists("./piper-sample-generator"):
     run("git -C piper-sample-generator checkout 213d4d5")
     run("wget -O piper-sample-generator/models/en_US-libritts_r-medium.pt "
         "'https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/en_US-libritts_r-medium.pt'")
-    # piper-tts e piper-phonemize-cross NON sono in requirements.txt perché
-    # piper_phonemize viene installato come pacchetto locale da piper-phonemize-cross
-    # e il path cambia ad ogni installazione.
+    # piper-tts and piper-phonemize-cross are not in requirements.txt because
+    # piper_phonemize is installed as a local package from piper-phonemize-cross
+    # and its path changes with each installation.
     run("pip install piper-tts piper-phonemize-cross webrtcvad-wheels")
 else:
-    print("piper-sample-generator già presente, skip.")
+    print("piper-sample-generator already present, skipping.")
 
 if "piper-sample-generator/" not in sys.path:
     sys.path.append("piper-sample-generator/")
@@ -59,16 +59,16 @@ if "piper-sample-generator/" not in sys.path:
 print("\n=== Setup openwakeword ===")
 if not os.path.exists("./openwakeword"):
     run("git clone https://github.com/dscripka/openwakeword")
-    # --no-deps: tutte le dipendenze sono già in requirements.txt
+    # --no-deps: all dependencies are already in requirements.txt
     run("pip install -e ./openwakeword --no-deps")
-    # datasets e deep-phonemizer servono solo per il download; non pinniamo
-    # la versione per evitare conflitti con pyarrow già installato.
+    # datasets and deep-phonemizer are only needed for downloading;
+    # versions are not pinned to avoid conflicts with an already-installed pyarrow.
     run("pip install 'datasets>=2.14' deep-phonemizer==0.0.19")
 else:
-    print("openwakeword già presente, skip.")
+    print("openwakeword already present, skipping.")
 
-# ── modelli openWakeWord ──────────────────────────────────────────────────────
-print("\n=== Download modelli openWakeWord ===")
+# ── openWakeWord models ───────────────────────────────────────────────────────
+print("\n=== Download openWakeWord models ===")
 models_dir = "./openwakeword/openwakeword/resources/models"
 os.makedirs(models_dir, exist_ok=True)
 base_url = "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1"
@@ -78,9 +78,9 @@ for fname in ["embedding_model.onnx", "embedding_model.tflite",
     if not os.path.exists(out):
         run(f"wget {base_url}/{fname} -O {out}")
     else:
-        print(f"  {fname} già presente, skip.")
+        print(f"  {fname} already present, skipping.")
 
-# ── dataset ───────────────────────────────────────────────────────────────────
+# ── datasets ──────────────────────────────────────────────────────────────────
 import numpy as np
 from pathlib import Path
 import datasets as hf_datasets
@@ -101,7 +101,7 @@ if not os.path.exists("./mit_rirs"):
         scipy.io.wavfile.write(f"./mit_rirs/{name}", 16000,
                                (row["audio"]["array"] * 32767).astype(np.int16))
 else:
-    print("MIT RIR già presente, skip.")
+    print("MIT RIR already present, skipping.")
 
 # AudioSet
 print("\n=== Download AudioSet ===")
@@ -119,7 +119,7 @@ if not os.path.exists("audioset"):
         scipy.io.wavfile.write(f"./audioset_16k/{name}", 16000,
                                (row["audio"]["array"] * 32767).astype(np.int16))
 else:
-    print("AudioSet già presente, skip.")
+    print("AudioSet already present, skipping.")
 
 # FMA
 print("\n=== Download FMA ===")
@@ -134,20 +134,20 @@ if not os.path.exists("./fma"):
         scipy.io.wavfile.write(f"./fma/{name}", 16000,
                                (row["audio"]["array"] * 32767).astype(np.int16))
 else:
-    print("FMA già presente, skip.")
+    print("FMA already present, skipping.")
 
-# Feature pre-calcolate
-print("\n=== Download feature ACAV100M (~17GB) ===")
+# Pre-computed features
+print("\n=== Download ACAV100M features (~17 GB) ===")
 if not os.path.exists("./openwakeword_features_ACAV100M_2000_hrs_16bit.npy"):
     run("wget https://huggingface.co/datasets/davidscripka/openwakeword_features/resolve/main/openwakeword_features_ACAV100M_2000_hrs_16bit.npy")
 else:
-    print("Feature ACAV100M già presenti, skip.")
+    print("ACAV100M features already present, skipping.")
 
 print("\n=== Download validation set ===")
 if not os.path.exists("./validation_set_features.npy"):
     run("wget https://huggingface.co/datasets/davidscripka/openwakeword_features/resolve/main/validation_set_features.npy")
 else:
-    print("Validation set già presente, skip.")
+    print("Validation set already present, skipping.")
 
-print("\n=== Setup e download completati ===")
-print("Procedi con: python 02_training.py")
+print("\n=== Setup and download complete ===")
+print("Next: python 02_training.py")
