@@ -46,7 +46,7 @@ echo "=== Venv activated: $(which python) ==="
 echo ""
 echo "=== pip install -r requirements.txt ==="
 pip install --upgrade pip -q
-pip install -r requirements.txt
+pip install --no-deps -r requirements.txt
 
 # ── 4. Patch libraries ────────────────────────────────────────────────────────
 echo ""
