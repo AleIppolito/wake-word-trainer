@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-STEP 1 - Set up piper-sample-generator and download datasets.
+STEP 0 - Set up piper-sample-generator and download datasets.
 Run ONCE. Skips anything already downloaded.
 
 Prerequisites:
   pip install -r requirements.txt
-  python 00_fix_dependencies.py
 
 Output:
   - ./piper-sample-generator/     (TTS engine)
@@ -38,6 +37,11 @@ def fix_locale():
 
 fix_locale()
 
+# torchcodec is required by datasets>=3.x for audio decoding.
+# It is installed here temporarily and removed at the end by 01_fix_n_patch.py
+# because it conflicts with other pinned dependencies.
+run("pip install torchcodec")
+
 # ── piper-sample-generator ────────────────────────────────────────────────────
 print("=== Setup piper-sample-generator ===")
 if not os.path.exists("./piper-sample-generator"):
@@ -45,10 +49,6 @@ if not os.path.exists("./piper-sample-generator"):
     run("git -C piper-sample-generator checkout 213d4d5")
     run("wget -O piper-sample-generator/models/en_US-libritts_r-medium.pt "
         "'https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/en_US-libritts_r-medium.pt'")
-    # piper-tts and piper-phonemize-cross are not in requirements.txt because
-    # piper_phonemize is installed as a local package from piper-phonemize-cross
-    # and its path changes with each installation.
-    run("pip install piper-tts piper-phonemize-cross webrtcvad-wheels")
 else:
     print("piper-sample-generator already present, skipping.")
 
@@ -61,9 +61,6 @@ if not os.path.exists("./openwakeword"):
     run("git clone https://github.com/dscripka/openwakeword")
     # --no-deps: all dependencies are already in requirements.txt
     run("pip install -e ./openwakeword --no-deps")
-    # datasets and deep-phonemizer are only needed for downloading;
-    # versions are not pinned to avoid conflicts with an already-installed pyarrow.
-    run("pip install 'datasets>=2.14' deep-phonemizer==0.0.19")
 else:
     print("openwakeword already present, skipping.")
 
@@ -149,5 +146,5 @@ if not os.path.exists("./validation_set_features.npy"):
 else:
     print("Validation set already present, skipping.")
 
-print("\n=== Setup and download complete ===")
-print("Next: python 02_training.py")
+print("\n=== Download complete ===")
+print("Next: python 01_fix_n_patch.py")

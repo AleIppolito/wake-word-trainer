@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Apply patches to installed libraries that have bugs on Python 3.12.
-Run ONCE after: pip install -r requirements.txt
+STEP 1 - Remove temporary dependencies and apply patches to installed libraries.
+Run ONCE after: python 00_download.py
 
-Patches applied:
-  1. pronouncing: uses pkg_resources (removed in 3.12) -> replaced with importlib.resources
-  2. acoustics:   sph_harm renamed in scipy >= 1.15 -> sph_harm_y
+Actions:
+  1. Uninstall torchcodec  (installed by 00_download.py for audio decoding;
+                            conflicts with other pinned dependencies)
+  2. pronouncing: uses pkg_resources (removed in 3.12) -> replaced with importlib.resources
+  3. acoustics:   sph_harm renamed in scipy >= 1.15 -> sph_harm_y
 """
 
 import subprocess
@@ -69,5 +71,11 @@ if target.exists():
 else:
     print(f"[SKIP] {target} not found")
 
+# ── 3. Remove torchcodec ──────────────────────────────────────────────────────
+# torchcodec was installed by 00_download.py to satisfy datasets>=3.x audio
+# decoding; it must be removed because it conflicts with pinned dependencies.
+print("\n=== Remove torchcodec ===")
+run("pip uninstall -y torchcodec", ignore_error=True)
+
 print("\n=== Patches applied ===")
-print("Next: python 01_setup_and_download.py")
+print("Next: python 02_training.py")
