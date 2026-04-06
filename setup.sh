@@ -21,11 +21,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -e
 
-REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
-VENV_DIR="$REPO_DIR/venv"
+VENV_DIR="./.venv"
 PYTHON="python3.12"
-
-cd "$REPO_DIR"
 
 # ── 1. Check Python ───────────────────────────────────────────────────────────
 if ! command -v "$PYTHON" &>/dev/null; then
@@ -48,7 +45,7 @@ echo "=== Venv activated: $(which python) ==="
 # ── 3. pip install ────────────────────────────────────────────────────────────
 echo ""
 echo "=== pip install -r requirements.txt ==="
-pip install --upgrade pip --quiet
+pip install --upgrade pip -q
 pip install -r requirements.txt
 
 # ── 4. Patch libraries ────────────────────────────────────────────────────────
@@ -74,6 +71,6 @@ echo "       From your local machine:"
 echo "         scp -r real_recordings/ root@<SERVER_IP>:$(pwd)/real_recordings"
 echo ""
 echo "    2. Start training:"
-echo "         source venv/bin/activate"
+echo "         source .venv/bin/activate"
 echo "         python 02_training.py"
 echo "════════════════════════════════════════════════════════════"
