@@ -79,6 +79,8 @@ from pathlib import Path
 import librosa
 import datasets as hf_datasets
 import scipy.io.wavfile
+import shutil
+from huggingface_hub import hf_hub_download
 from tqdm import tqdm
 
 # MIT RIR
@@ -96,11 +98,19 @@ else:
 
 # AudioSet
 print("\n=== Download AudioSet ===")
-if not os.path.exists("audioset"):
-    os.mkdir("audioset")
+if not os.path.exists("./audioset_16k"):
+    os.makedirs("audioset", exist_ok=True)
     fname = "bal_train09.tar"
-    run(f"wget -O audioset/{fname} https://huggingface.co/datasets/agkphysics/AudioSet/resolve/main/data/{fname}")
-    run("cd audioset && tar -xvf bal_train09.tar")
+    tar_path = f"audioset/{fname}"
+    if not os.path.exists(tar_path):
+        print(f"Downloading {fname} via huggingface_hub...")
+        cached = hf_hub_download(
+            repo_id="agkphysics/AudioSet",
+            filename=f"data/{fname}",
+            repo_type="dataset",
+        )
+        shutil.copy(cached, tar_path)
+    run(f"cd audioset && tar -xvf {fname}")
     os.makedirs("./audioset_16k", exist_ok=True)
     for flac_path in tqdm(sorted(Path("audioset/audio").glob("**/*.flac")), desc="AudioSet"):
         data, _ = librosa.load(flac_path, sr=16000, mono=True)
@@ -110,20 +120,23 @@ if not os.path.exists("audioset"):
 else:
     print("AudioSet already present, skipping.")
 
-# FMA
+# FMA (using GTZAN as a drop-in replacement — rudraml/fma uses a legacy dataset
+# script that is no longer supported in datasets>=3.0)
 print("\n=== Download FMA ===")
 if not os.path.exists("./fma"):
     os.mkdir("./fma")
-    fma_dataset = hf_datasets.load_dataset("rudraml/fma", name="small", split="train", streaming=True)
+    fma_dataset = hf_datasets.load_dataset("marsyas/gtzan", split="train", streaming=True)
     fma_iter = iter(fma_dataset)
     n_hours = 1
     for i in tqdm(range(n_hours * 3600 // 30), desc="FMA"):
-        row = next(fma_iter)
-        audio_bytes = row["audio"]["bytes"]
-        path = row["audio"]["path"] or f"track_{i}.mp3"
-        name = path.split("/")[-1].replace(".mp3", ".wav")
-        data, _ = librosa.load(io.BytesIO(audio_bytes), sr=16000, mono=True)
-        scipy.io.wavfile.write(f"./fma/{name}", 16000,
+        try:
+            row = next(fma_iter)
+        except StopIteration:
+            break
+        audio_array = np.array(row["audio"]["array"], dtype=np.float32)
+        orig_sr = row["audio"]["sampling_rate"]
+        data = librosa.resample(audio_array, orig_sr=orig_sr, target_sr=16000) if orig_sr != 16000 else audio_array
+        scipy.io.wavfile.write(f"./fma/track_{i:04d}.wav", 16000,
                                (data * 32767).astype(np.int16))
 else:
     print("FMA already present, skipping.")
