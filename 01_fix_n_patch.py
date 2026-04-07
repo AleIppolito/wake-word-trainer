@@ -69,24 +69,120 @@ if target.exists():
 else:
     print(f"[SKIP] {target} not found")
 
-# ── 3. piper-sample-generator ────────────────────────────────────────────────
-# PyTorch 2.6: torch.load default weights_only=True -> breaks complete models
-print("\n=== Fix 3: piper-sample-generator (torch.load weights_only=False) ===")
-
-target = Path("./piper-sample-generator/generate_samples.py")
-
+# ── 5. torchaudio.info() missing in 2.9+ ─────────────────────────────────────
+# torchaudio 2.9+ removed torchaudio.info() — torch_audiomentations calls it
+# to read audio metadata. Inject a soundfile-backed stub into the namespace.
+print("\n=== Fix 5: torchaudio.info() stub (soundfile backend, removed in 2.9+) ===")
+target = sp / "torchaudio" / "__init__.py"
 if target.exists():
-    run(
-        f"sed -i 's/torch.load(model_path)/torch.load(model_path, weights_only=False)/' {target}"
-    )
-
-    result = subprocess.run(
-        [sys.executable, "-c", f"import sys; sys.path.append('./piper-sample-generator'); import generate_samples; print('piper patch OK')"],
-        capture_output=True, text=True,
-    )
-    print(result.stdout.strip() or result.stderr.strip())
+    content = target.read_text()
+    if "def info(" not in content:
+        stub = (
+            "\n\n"
+            "# Patch: torchaudio.info() removed in 2.9+ — inject soundfile stub\n"
+            "def info(uri, format=None, buffer_size=4096):\n"
+            "    import soundfile as _sf\n"
+            "    from types import SimpleNamespace\n"
+            "    _i = _sf.info(str(uri))\n"
+            "    return SimpleNamespace(num_frames=_i.frames, sample_rate=_i.samplerate,\n"
+            "                           num_channels=_i.channels)\n"
+        )
+        target.write_text(content + stub)
+        result = subprocess.run(
+            [sys.executable, "-c", "import torchaudio; torchaudio.info; print('torchaudio.info patch OK')"],
+            capture_output=True, text=True,
+        )
+        print(result.stdout.strip() or result.stderr.strip())
+    else:
+        print("[SKIP] torchaudio.info already defined")
 else:
     print(f"[SKIP] {target} not found")
+
+print("\n=== Patches applied ===")
+print("Next: python 02_training.py")
+
+# ── train.py patches ──────────────────────────────────────────────────────────
+# openwakeword/openwakeword/train.py has several issues fixed below.
+train_py = Path("./openwakeword/openwakeword/train.py")
+
+# ── 6. convert_to_tflite default="False" bug ─────────────────────────────────
+# action="store_true" with default="False" (a string) makes the flag always
+# truthy, so TFLite conversion (which needs onnx_tf/TensorFlow) always runs.
+# 02_training.py handles TFLite conversion separately via onnx2tf.
+print("\n=== Fix 6: train.py --convert_to_tflite default='False' bug ===")
+if train_py.exists():
+    content = train_py.read_text()
+    old = (
+        '    parser.add_argument(\n'
+        '        "--convert_to_tflite",\n'
+        '        help="Convert the trained ONNX model to TFLite format",\n'
+        '        action="store_true",\n'
+        '        default="False",\n'
+        '        required=False\n'
+        '    )'
+    )
+    new = (
+        '    parser.add_argument(\n'
+        '        "--convert_to_tflite",\n'
+        '        help="Convert the trained ONNX model to TFLite format",\n'
+        '        action="store_true",\n'
+        '        required=False\n'
+        '    )'
+    )
+    if old in content:
+        train_py.write_text(content.replace(old, new))
+        print("  applied: removed default='False' from --convert_to_tflite")
+    else:
+        print("  [SKIP] already patched or pattern not found")
+else:
+    print(f"  [SKIP] {train_py} not found")
+
+# ── 7. ONNX export: model not in eval mode ───────────────────────────────────
+# torch.onnx.export is called while model is in training mode, which can affect
+# dropout/batchnorm behaviour at inference time.
+# Also bumps opset from 13 to 18: LayerNormalization requires opset >= 17,
+# so the downgrade always fails and staying at 18 eliminates the warning noise.
+print("\n=== Fix 7: train.py ONNX export — eval() + opset 13->18 ===")
+if train_py.exists():
+    content = train_py.read_text()
+    old = (
+        '        model_to_save = copy.deepcopy(model)\n'
+        '        torch.onnx.export(model_to_save.to("cpu"), torch.rand(self.input_shape)[None, ],\n'
+        '                          os.path.join(output_dir, model_name + ".onnx"), opset_version=13)'
+    )
+    new = (
+        '        model_to_save = copy.deepcopy(model)\n'
+        '        model_to_save.eval()\n'
+        '        torch.onnx.export(model_to_save.to("cpu"), torch.rand(self.input_shape)[None, ],\n'
+        '                          os.path.join(output_dir, model_name + ".onnx"), opset_version=18)'
+    )
+    if old in content:
+        train_py.write_text(content.replace(old, new))
+        print("  applied: model_to_save.eval() added, opset_version 13->18")
+    else:
+        print("  [SKIP] already patched or pattern not found")
+else:
+    print(f"  [SKIP] {train_py} not found")
+
+# ── 8. Suppress onnxscript/onnx_ir DEBUG spam ────────────────────────────────
+# The ONNX exporter emits hundreds of DEBUG lines ("An OpSchema was not provided
+# for Op ...") that bury real warnings. Suppress at WARNING level.
+print("\n=== Fix 8: train.py — suppress onnxscript/onnx_ir DEBUG logging ===")
+if train_py.exists():
+    content = train_py.read_text()
+    old = "import logging\n"
+    new = (
+        "import logging\n"
+        "logging.getLogger('onnxscript').setLevel(logging.WARNING)\n"
+        "logging.getLogger('onnx_ir').setLevel(logging.WARNING)\n"
+    )
+    if old in content and "onnxscript').setLevel" not in content:
+        train_py.write_text(content.replace(old, new, 1))
+        print("  applied: onnxscript/onnx_ir loggers set to WARNING")
+    else:
+        print("  [SKIP] already patched or pattern not found")
+else:
+    print(f"  [SKIP] {train_py} not found")
 
 # ── 4. torchaudio torchcodec fallback ────────────────────────────────────────
 # torchaudio 2.9+ routes torchaudio.load() through torchcodec which may not be
@@ -149,34 +245,65 @@ if target.exists():
 else:
     print(f"[SKIP] {target} not found")
 
-# ── 5. torchaudio.info() missing in 2.9+ ─────────────────────────────────────
-# torchaudio 2.9+ removed torchaudio.info() — torch_audiomentations calls it
-# to read audio metadata. Inject a soundfile-backed stub into the namespace.
-print("\n=== Fix 5: torchaudio.info() stub (soundfile backend, removed in 2.9+) ===")
-target = sp / "torchaudio" / "__init__.py"
+# ── 3. piper-sample-generator ────────────────────────────────────────────────
+# PyTorch 2.6: torch.load default weights_only=True -> breaks complete models
+print("\n=== Fix 3: piper-sample-generator (torch.load weights_only=False) ===")
+
+target = Path("./piper-sample-generator/generate_samples.py")
+
 if target.exists():
-    content = target.read_text()
-    if "def info(" not in content:
-        stub = (
-            "\n\n"
-            "# Patch: torchaudio.info() removed in 2.9+ — inject soundfile stub\n"
-            "def info(uri, format=None, buffer_size=4096):\n"
-            "    import soundfile as _sf\n"
-            "    from types import SimpleNamespace\n"
-            "    _i = _sf.info(str(uri))\n"
-            "    return SimpleNamespace(num_frames=_i.frames, sample_rate=_i.samplerate,\n"
-            "                           num_channels=_i.channels)\n"
-        )
-        target.write_text(content + stub)
-        result = subprocess.run(
-            [sys.executable, "-c", "import torchaudio; torchaudio.info; print('torchaudio.info patch OK')"],
-            capture_output=True, text=True,
-        )
-        print(result.stdout.strip() or result.stderr.strip())
-    else:
-        print("[SKIP] torchaudio.info already defined")
+    run(
+        f"sed -i 's/torch.load(model_path)/torch.load(model_path, weights_only=False)/' {target}"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", f"import sys; sys.path.append('./piper-sample-generator'); import generate_samples; print('piper patch OK')"],
+        capture_output=True, text=True,
+    )
+    print(result.stdout.strip() or result.stderr.strip())
 else:
     print(f"[SKIP] {target} not found")
 
-print("\n=== Patches applied ===")
-print("Next: python 02_training.py")
+# ── 9. torch_audiomentations FutureWarning ───────────────────────────────────
+# output_type=None triggers a FutureWarning; output_type="tensor" a
+# DeprecationWarning. Both branches only warn, no other logic. Replace both
+# with a silent default so behaviour is unchanged but the noise is gone.
+print("\n=== Fix 9: torch_audiomentations — silence output_type warnings ===")
+_warn_block = (
+    '        if output_type is None:\n'
+    '            warnings.warn(\n'
+    '                f"Transforms now expect an `output_type` argument that currently defaults to \'tensor\', "\n'
+    '                f"will default to \'dict\' in v0.12, and will be removed in v0.13. Make sure to update "\n'
+    '                f"your code to something like:\\n"\n'
+    '                f"  >>> augment = {self.__class__.__name__}(..., output_type=\'dict\')\\n"\n'
+    '                f"  >>> augmented_samples = augment(samples).samples",\n'
+    '                FutureWarning,\n'
+    '            )\n'
+    '            output_type = "tensor"\n'
+    '\n'
+    '        elif output_type == "tensor":\n'
+    '            warnings.warn(\n'
+    '                f"`output_type` argument will default to \'dict\' in v0.12, and will be removed in v0.13. "\n'
+    '                f"Make sure to update your code to something like:\\n"\n'
+    '                f"your code to something like:\\n"\n'
+    '                f"  >>> augment = {self.__class__.__name__}(..., output_type=\'dict\')\\n"\n'
+    '                f"  >>> augmented_samples = augment(samples).samples",\n'
+    '                DeprecationWarning,\n'
+    '            )\n'
+)
+_warn_replacement = '        if output_type is None:\n            output_type = "tensor"\n'
+
+for _ta_file in [
+    sp / "torch_audiomentations" / "core" / "transforms_interface.py",
+    sp / "torch_audiomentations" / "core" / "composition.py",
+]:
+    print(f"  patching {_ta_file.name} ...", end=" ")
+    if _ta_file.exists():
+        _content = _ta_file.read_text()
+        if _warn_block in _content:
+            _ta_file.write_text(_content.replace(_warn_block, _warn_replacement))
+            print("applied")
+        else:
+            print("[SKIP] already patched or pattern not found")
+    else:
+        print("[SKIP] not found")

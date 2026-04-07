@@ -146,6 +146,12 @@ for step in STEPS_ORDER:
         # clear the split sentinel too so files are re-copied
         if sentinels["split"].exists():
             sentinels["split"].unlink()
+        # delete feature .npy files — train.py skips augmentation if they exist
+        for npy in ["positive_features_train.npy", "positive_features_test.npy",
+                    "negative_features_train.npy", "negative_features_test.npy"]:
+            p = os.path.join(model_dir, npy)
+            if os.path.exists(p):
+                os.remove(p)
     elif step == "train":
         if os.path.exists(onnx_path):
             os.remove(onnx_path)
