@@ -10,10 +10,9 @@
 #
 # What it does:
 #   1. Checks Python 3.12 and creates the venv
-#   2. pip install -r requirements.txt (--no-deps) + torchcodec
+#   2. pip install -r requirements.txt (--no-deps)
 #   3. 00_download.py - clones repos + downloads datasets (~17 GB)
 #   4. 01_fix_n_patch.py - patches pronouncing and acoustics
-#   5. Uninstalls torchcodec (conflicts with pinned dependencies)
 #
 # After:
 #   Put your recordings in ./real_recordings/ and run:
@@ -48,12 +47,7 @@ echo "=== pip install -r requirements.txt ==="
 pip install --upgrade pip -q
 pip install --no-deps -r requirements.txt
 
-# ── 4. Install torchcodec (needed by datasets>=3.x for audio decoding) ───────
-echo ""
-echo "=== pip install torchcodec (temporary - removed after download) ==="
-pip install torchcodec
-
-# ── 5. Clone repos + download datasets ───────────────────────────────────────
+# ── 4. Clone repos + download datasets ───────────────────────────────────────
 echo ""
 echo "=== Download repos and datasets (00_download.py) ==="
 echo "    (ACAV100M feature download is ~17 GB - this will take a while)"
@@ -63,11 +57,6 @@ python 00_download.py
 echo ""
 echo "=== Patch incompatible dependencies (01_fix_n_patch.py) ==="
 python 01_fix_n_patch.py
-
-# ── 7. Remove torchcodec (conflicts with pinned dependencies) ─────────────────
-echo ""
-echo "=== Removing torchcodec ==="
-pip uninstall -y torchcodec
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
