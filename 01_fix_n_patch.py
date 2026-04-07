@@ -71,3 +71,22 @@ else:
 
 print("\n=== Patches applied ===")
 print("Next: python 02_training.py")
+
+# ── 3. piper-sample-generator ────────────────────────────────────────────────
+# PyTorch 2.6: torch.load default weights_only=True -> breaks complete models
+print("\n=== Fix 3: piper-sample-generator (torch.load weights_only=False) ===")
+
+target = Path("./piper-sample-generator/generate_samples.py")
+
+if target.exists():
+    run(
+        f"sed -i 's/torch.load(model_path)/torch.load(model_path, weights_only=False)/' {target}"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", f"import sys; sys.path.append('./piper-sample-generator'); import generate_samples; print('piper patch OK')"],
+        capture_output=True, text=True,
+    )
+    print(result.stdout.strip() or result.stderr.strip())
+else:
+    print(f"[SKIP] {target} not found")
