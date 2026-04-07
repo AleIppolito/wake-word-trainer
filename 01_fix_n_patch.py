@@ -69,37 +69,24 @@ if target.exists():
 else:
     print(f"[SKIP] {target} not found")
 
-# ── 5. torchaudio.info() missing in 2.9+ ─────────────────────────────────────
-# torchaudio 2.9+ removed torchaudio.info() — torch_audiomentations calls it
-# to read audio metadata. Inject a soundfile-backed stub into the namespace.
-print("\n=== Fix 5: torchaudio.info() stub (soundfile backend, removed in 2.9+) ===")
-target = sp / "torchaudio" / "__init__.py"
+# ── 3. piper-sample-generator ────────────────────────────────────────────────
+# PyTorch 2.6: torch.load default weights_only=True -> breaks complete models
+print("\n=== Fix 3: piper-sample-generator (torch.load weights_only=False) ===")
+
+target = Path("./piper-sample-generator/generate_samples.py")
+
 if target.exists():
-    content = target.read_text()
-    if "def info(" not in content:
-        stub = (
-            "\n\n"
-            "# Patch: torchaudio.info() removed in 2.9+ — inject soundfile stub\n"
-            "def info(uri, format=None, buffer_size=4096):\n"
-            "    import soundfile as _sf\n"
-            "    from types import SimpleNamespace\n"
-            "    _i = _sf.info(str(uri))\n"
-            "    return SimpleNamespace(num_frames=_i.frames, sample_rate=_i.samplerate,\n"
-            "                           num_channels=_i.channels)\n"
-        )
-        target.write_text(content + stub)
-        result = subprocess.run(
-            [sys.executable, "-c", "import torchaudio; torchaudio.info; print('torchaudio.info patch OK')"],
-            capture_output=True, text=True,
-        )
-        print(result.stdout.strip() or result.stderr.strip())
-    else:
-        print("[SKIP] torchaudio.info already defined")
+    run(
+        f"sed -i 's/torch.load(model_path)/torch.load(model_path, weights_only=False)/' {target}"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", f"import sys; sys.path.append('./piper-sample-generator'); import generate_samples; print('piper patch OK')"],
+        capture_output=True, text=True,
+    )
+    print(result.stdout.strip() or result.stderr.strip())
 else:
     print(f"[SKIP] {target} not found")
-
-print("\n=== Patches applied ===")
-print("Next: python 02_training.py")
 
 # ── 4. torchaudio torchcodec fallback ────────────────────────────────────────
 # torchaudio 2.9+ routes torchaudio.load() through torchcodec which may not be
@@ -162,21 +149,34 @@ if target.exists():
 else:
     print(f"[SKIP] {target} not found")
 
-# ── 3. piper-sample-generator ────────────────────────────────────────────────
-# PyTorch 2.6: torch.load default weights_only=True -> breaks complete models
-print("\n=== Fix 3: piper-sample-generator (torch.load weights_only=False) ===")
-
-target = Path("./piper-sample-generator/generate_samples.py")
-
+# ── 5. torchaudio.info() missing in 2.9+ ─────────────────────────────────────
+# torchaudio 2.9+ removed torchaudio.info() — torch_audiomentations calls it
+# to read audio metadata. Inject a soundfile-backed stub into the namespace.
+print("\n=== Fix 5: torchaudio.info() stub (soundfile backend, removed in 2.9+) ===")
+target = sp / "torchaudio" / "__init__.py"
 if target.exists():
-    run(
-        f"sed -i 's/torch.load(model_path)/torch.load(model_path, weights_only=False)/' {target}"
-    )
-
-    result = subprocess.run(
-        [sys.executable, "-c", f"import sys; sys.path.append('./piper-sample-generator'); import generate_samples; print('piper patch OK')"],
-        capture_output=True, text=True,
-    )
-    print(result.stdout.strip() or result.stderr.strip())
+    content = target.read_text()
+    if "def info(" not in content:
+        stub = (
+            "\n\n"
+            "# Patch: torchaudio.info() removed in 2.9+ — inject soundfile stub\n"
+            "def info(uri, format=None, buffer_size=4096):\n"
+            "    import soundfile as _sf\n"
+            "    from types import SimpleNamespace\n"
+            "    _i = _sf.info(str(uri))\n"
+            "    return SimpleNamespace(num_frames=_i.frames, sample_rate=_i.samplerate,\n"
+            "                           num_channels=_i.channels)\n"
+        )
+        target.write_text(content + stub)
+        result = subprocess.run(
+            [sys.executable, "-c", "import torchaudio; torchaudio.info; print('torchaudio.info patch OK')"],
+            capture_output=True, text=True,
+        )
+        print(result.stdout.strip() or result.stderr.strip())
+    else:
+        print("[SKIP] torchaudio.info already defined")
 else:
     print(f"[SKIP] {target} not found")
+
+print("\n=== Patches applied ===")
+print("Next: python 02_training.py")
