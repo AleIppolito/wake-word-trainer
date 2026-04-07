@@ -149,6 +149,16 @@ for step in STEPS_ORDER:
     elif step == "train":
         if os.path.exists(onnx_path):
             os.remove(onnx_path)
+        # Feature .npy files are produced by the augment step and consumed by
+        # train.  If we're re-running train we must regenerate them, so drop
+        # the augment sentinel and the stale feature files.
+        if sentinels["augment"].exists():
+            sentinels["augment"].unlink()
+        for npy in ["positive_features_train.npy", "positive_features_test.npy",
+                    "negative_features_train.npy", "negative_features_test.npy"]:
+            p = os.path.join(model_dir, npy)
+            if os.path.exists(p):
+                os.remove(p)
     elif step == "convert":
         for f in [tflite_final, tflite_tmp,
                   os.path.join(output_dir, f"{model_name}_float16.tflite")]:
