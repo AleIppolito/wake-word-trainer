@@ -74,7 +74,7 @@ try:
 
         rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)))
         if rms < 80:
-            print("  [!] Too quiet (RMS={:.0f}) — move closer to the mic and try again.".format(rms))
+            print("  [!] Too quiet (RMS={:.0f}) - move closer to the mic and try again.".format(rms))
             continue
 
         filename = os.path.join(OUTPUT_DIR, f"recording_{count:04d}.wav")
@@ -89,7 +89,7 @@ total = count - existing
 print()
 print(f"  Session ended: +{total} new clips, {count} total.")
 print()
-print("  Next — transfer the folder to the training server:")
+print("  Next - transfer the folder to the training server:")
 print(f"    scp -r {OUTPUT_DIR} root@<SERVER_IP>:/root/wake-word-trainer/real_recordings")
 print()
 if count < 100:

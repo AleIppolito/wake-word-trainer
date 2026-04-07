@@ -71,11 +71,5 @@ if target.exists():
 else:
     print(f"[SKIP] {target} not found")
 
-# ── 3. Remove torchcodec ──────────────────────────────────────────────────────
-# torchcodec was installed by 00_download.py to satisfy datasets>=3.x audio
-# decoding; it must be removed because it conflicts with pinned dependencies.
-print("\n=== Remove torchcodec ===")
-run("pip uninstall -y torchcodec", ignore_error=True)
-
 print("\n=== Patches applied ===")
 print("Next: python 02_training.py")

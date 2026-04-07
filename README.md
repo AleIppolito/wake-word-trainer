@@ -1,4 +1,4 @@
-# Wake Word Trainer — openWakeWord
+# Wake Word Trainer - openWakeWord
 
 Train a custom wake word model using your own voice recordings and the [openWakeWord](https://github.com/dscripka/openwakeword) framework. The pipeline uses real voice samples (no synthetic TTS for positive examples) and produces both ONNX and TFLite models ready for deployment.
 
@@ -10,7 +10,7 @@ Train a custom wake word model using your own voice recordings and the [openWake
 |---|---|
 | Python | 3.12 |
 | CUDA | 13.0 |
-| Disk space | ~20 GB (dataset + venv) |
+| Disk space | ~200 GB (datasets + venv + training) |
 | RAM | 16 GB+ recommended |
 
 ---
@@ -21,9 +21,9 @@ Train a custom wake word model using your own voice recordings and the [openWake
 [any machine]                     [Linux server / VM]
 record.py  ──────── scp ────────► real_recordings/
                                   │
-                                  ├─ 00_fix_dependencies.py   (patch libraries)
-                                  ├─ 01_setup_and_download.py (clone repos + download ~17 GB)
-                                  └─ 02_training.py           (train + export)
+                                  ├─ 00_download.py    (clone repos + download ~17 GB)
+                                  ├─ 01_fix_n_patch.py (patch libraries)
+                                  └─ 02_training.py    (train + export)
 ```
 
 ---
@@ -64,20 +64,23 @@ bash setup.sh
 ```
 
 This will:
-1. Create a Python 3.12 venv at `./venv`
-2. Install all dependencies from `requirements.txt`
-3. Apply compatibility patches (`00_fix_dependencies.py`)
-4. Clone `piper-sample-generator` and `openwakeword`
-5. Download all training data (~17 GB total)
+1. Create a Python 3.12 venv at `./.venv`
+2. Install all dependencies from `requirements.txt` (+ `torchcodec` temporarily)
+3. Clone `piper-sample-generator` and `openwakeword`, download all training data (~17 GB)
+4. Apply compatibility patches (`01_fix_n_patch.py`)
+5. Uninstall `torchcodec` (conflicts with pinned deps)
 
 Alternatively, run each step manually:
 
 ```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python 00_fix_dependencies.py
-python 01_setup_and_download.py
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install --no-deps -r requirements.txt
+pip install torchcodec
+python 00_download.py
+python 01_fix_n_patch.py
+pip uninstall -y torchcodec
 ```
 
 **Downloaded assets:**
@@ -95,7 +98,7 @@ python 01_setup_and_download.py
 ### 3. Train the model
 
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 python 02_training.py
 ```
 
@@ -144,7 +147,7 @@ Key parameters at the top of `02_training.py`:
 
 **Cause:** `pronouncing` uses `pkg_resources`, which was removed from the standard library in Python 3.12.
 
-**Fix:** Handled automatically by `00_fix_dependencies.py`. It patches `pronouncing/__init__.py` to use `importlib.resources` instead.
+**Fix:** Handled automatically by `01_fix_n_patch.py`. It patches `pronouncing/__init__.py` to use `importlib.resources` instead.
 
 ---
 
@@ -152,7 +155,7 @@ Key parameters at the top of `02_training.py`:
 
 **Cause:** `acoustics` imports `sph_harm`, which was renamed to `sph_harm_y` in SciPy ≥ 1.15.
 
-**Fix:** Handled automatically by `00_fix_dependencies.py`. It patches `acoustics/directivity.py` with an alias import.
+**Fix:** Handled automatically by `01_fix_n_patch.py`. It patches `acoustics/directivity.py` with an alias import.
 
 ---
 
@@ -197,8 +200,8 @@ run(f"onnx2tf -i {onnx_path} -o my_custom_model/ -kat <correct_tensor_name>")
 wake-word-trainer/
 ├── setup.sh                    # One-command full setup
 ├── requirements.txt            # Pinned dependencies (Python 3.12 + CUDA 13.0)
-├── 00_fix_dependencies.py      # Post-install patches for pronouncing & acoustics
-├── 01_setup_and_download.py    # Clone repos + download datasets
+├── 00_download.py              # Clone repos + download datasets
+├── 01_fix_n_patch.py           # Post-install patches for pronouncing & acoustics
 ├── 02_training.py              # Main training pipeline
 └── record.py                   # Voice recorder
 ```

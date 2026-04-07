@@ -7,13 +7,13 @@ Prerequisites:
   pip install -r requirements.txt
 
 Output:
-  - ./piper-sample-generator/     (TTS engine)
-  - ./openwakeword/               (training framework)
-  - ./mit_rirs/                   (Room Impulse Responses)
-  - ./audioset_16k/               (background noise)
-  - ./fma/                        (background music)
-  - ./openwakeword_features_ACAV100M_2000_hrs_16bit.npy  (~17 GB, training features)
-  - ./validation_set_features.npy (~180 MB, validation features)
+  - ./piper-sample-generator/                           (TTS engine)
+  - ./openwakeword/                                     (training framework)
+  - ./mit_rirs/                                         (Room Impulse Responses)
+  - ./audioset_16k/                                     (background noise)
+  - ./fma/                                              (background music)
+  - ./openwakeword_features_ACAV100M_2000_hrs_16bit.npy (~17 GB, training features)
+  - ./validation_set_features.npy                       (~180 MB, validation features)
 """
 
 import os
@@ -36,11 +36,6 @@ def fix_locale():
 
 
 fix_locale()
-
-# torchcodec is required by datasets>=3.x for audio decoding.
-# It is installed here temporarily and removed at the end by 01_fix_n_patch.py
-# because it conflicts with other pinned dependencies.
-run("pip install torchcodec")
 
 # ── piper-sample-generator ────────────────────────────────────────────────────
 print("=== Setup piper-sample-generator ===")
@@ -147,4 +142,3 @@ else:
     print("Validation set already present, skipping.")
 
 print("\n=== Download complete ===")
-print("Next: python 01_fix_n_patch.py")

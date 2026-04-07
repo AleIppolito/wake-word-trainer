@@ -3,7 +3,7 @@
 STEP 2 - Train on real voice recordings (no synthetic TTS for positive examples).
 
 Prerequisites:
-  - 00_fix_dependencies.py and 01_setup_and_download.py already run
+  - 00_download.py and 01_fix_n_patch.py already run (via setup.sh)
   - WAV recordings in RECORDINGS_SOURCE_DIR (produced by record.py)
     Files at any sample rate are automatically resampled to 16 kHz.
 
@@ -93,7 +93,7 @@ def should_run(step: str) -> bool:
 # ── 1. Prompt for wake word ───────────────────────────────────────────────────
 print("\nEnter the wake word phrase.")
 print("This is used to generate adversarial TTS negative samples and to name the output model.")
-TARGET_WORD = input("Wake word: ").strip()
+TARGET_WORD = input("Wake word: ").strip().lower()
 if not TARGET_WORD:
     print("[ERROR] Wake word cannot be empty.")
     sys.exit(1)
@@ -107,7 +107,7 @@ onnx_path  = os.path.join(output_dir, f"{model_name}.onnx")
 tflite_final = os.path.join(output_dir, f"{model_name}.tflite")
 tflite_tmp   = os.path.join(output_dir, f"{model_name}_float32.tflite")
 
-# Sentinel files — created on successful step completion
+# Sentinel files - created on successful step completion
 sentinels = {
     step: Path(model_dir) / f".done_{step}"
     for step in STEPS_ORDER
@@ -138,8 +138,8 @@ if not os.path.exists(RECORDINGS_SOURCE_DIR):
     sys.exit(1)
 
 all_wavs = sorted(Path(RECORDINGS_SOURCE_DIR).glob("*.wav"))
-if len(all_wavs) < 20:
-    print(f"[ERROR] Only {len(all_wavs)} WAV files found. At least 20 are required (200+ recommended).")
+if len(all_wavs) < 200:
+    print(f"[ERROR] Only {len(all_wavs)} WAV files found. At least 200 are required (300 recommended).")
     sys.exit(1)
 print(f"Found {len(all_wavs)} WAV files.")
 
@@ -151,7 +151,7 @@ for d in [pos_train, pos_test,
 
 # ── 4. Split and copy ─────────────────────────────────────────────────────────
 if step_done("split"):
-    print(f"\n[SKIP] split — reading clip counts from existing directories.")
+    print(f"\n[SKIP] split - reading clip counts from existing directories.")
     train_count = len(list(Path(pos_train).glob("*.wav")))
     test_count  = len(list(Path(pos_test).glob("*.wav")))
     print(f"  {train_count} train clips, {test_count} test clips.")
@@ -208,7 +208,7 @@ config["false_positive_validation_data_path"] = "validation_set_features.npy"
 config["feature_data_files"]                  = {
     "ACAV100M_sample": "openwakeword_features_ACAV100M_2000_hrs_16bit.npy"
 }
-with open("my_model.yaml", "w") as f:
+with open(f"{model_name}.yaml", "w") as f:
     yaml.dump(config, f)
 
 eff_train = train_count * AUGMENTATION_ROUNDS
@@ -222,10 +222,10 @@ print(f"Target recall:     0.5  (early stop)")
 
 # ── 6. Generate adversarial negative clips ────────────────────────────────────
 if step_done("generate"):
-    print("\n[SKIP] generate — adversarial negative clips already generated.")
+    print("\n[SKIP] generate - adversarial negative clips already generated.")
 else:
     print("\n=== [generate] Adversarial negative clips (TTS) ===")
-    if run(f"{sys.executable} openwakeword/openwakeword/train.py --training_config my_model.yaml --generate_clips"):
+    if run(f"{sys.executable} openwakeword/openwakeword/train.py --training_config {model_name}.yaml --generate_clips"):
         mark_done("generate")
     else:
         print("[ERROR] generate step failed. Fix the issue and re-run.")
@@ -233,10 +233,10 @@ else:
 
 # ── 7. Augment ────────────────────────────────────────────────────────────────
 if step_done("augment"):
-    print("\n[SKIP] augment — clips already augmented.")
+    print("\n[SKIP] augment - clips already augmented.")
 else:
     print("\n=== [augment] Augment clips ===")
-    if run(f"{sys.executable} openwakeword/openwakeword/train.py --training_config my_model.yaml --augment_clips"):
+    if run(f"{sys.executable} openwakeword/openwakeword/train.py --training_config {model_name}.yaml --augment_clips"):
         mark_done("augment")
     else:
         print("[ERROR] augment step failed. Fix the issue and re-run.")
@@ -244,10 +244,10 @@ else:
 
 # ── 8. Train ──────────────────────────────────────────────────────────────────
 if step_done("train"):
-    print("\n[SKIP] train — model already trained.")
+    print("\n[SKIP] train - model already trained.")
 else:
     print("\n=== [train] Train model ===")
-    if run(f"{sys.executable} openwakeword/openwakeword/train.py --training_config my_model.yaml --train_model"):
+    if run(f"{sys.executable} openwakeword/openwakeword/train.py --training_config {model_name}.yaml --train_model"):
         mark_done("train")
     else:
         print("[ERROR] train step failed. Fix the issue and re-run.")
@@ -255,11 +255,11 @@ else:
 
 # ── 9. ONNX -> TFLite ────────────────────────────────────────────────────────
 if step_done("convert"):
-    print(f"\n[SKIP] convert — TFLite model already exists.")
+    print(f"\n[SKIP] convert - TFLite model already exists.")
 else:
     print("\n=== [convert] ONNX -> TFLite (via onnx2tf) ===")
     if not os.path.exists(onnx_path):
-        print(f"[ERROR] {onnx_path} not found — training output is missing.")
+        print(f"[ERROR] {onnx_path} not found - training output is missing.")
         sys.exit(1)
     if run(f"onnx2tf -i {onnx_path} -o {output_dir}/ -kat onnx____Flatten_0"):
         if os.path.exists(tflite_tmp):
