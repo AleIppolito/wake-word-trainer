@@ -20,7 +20,7 @@
 acoustics==0.2.6
 ai-edge-litert==2.1.2
 annotated-doc==0.0.4
-datasets>=2.14
+datasets==4.8.4
 anyio==4.12.1
 asttokens==3.0.1
 audiomentations==0.43.1
@@ -36,6 +36,7 @@ contourpy==1.3.3
 cycler==0.12.1
 decorator==5.2.1
 deep-phonemizer==0.0.19
+dill==0.4.1
 executing==2.2.1
 filelock==3.25.2
 flatbuffers==25.12.19
@@ -66,6 +67,7 @@ mdurl==0.1.2
 ml_dtypes==0.5.1
 mpmath==1.3.0
 msgpack==1.1.2
+multiprocess==0.70.19
 mutagen==1.47.0
 networkx==3.6.1
 numba==0.65.0
@@ -150,4 +152,5 @@ typing_extensions==4.15.0
 urllib3==2.6.3
 webrtcvad-wheels==2.0.14
 wheel==0.46.3
+xxhash==3.6.0
 zipp==3.23.0
