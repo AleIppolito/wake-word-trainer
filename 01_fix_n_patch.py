@@ -72,7 +72,68 @@ else:
 print("\n=== Patches applied ===")
 print("Next: python 02_training.py")
 
-# ── 3. piper-sample-generator ────────────────────────────────────────────────
+# ── 3. torchaudio torchcodec fallback ────────────────────────────────────────
+# torchaudio 2.9+ routes torchaudio.load() through torchcodec which may not be
+# installed (breaks other deps). Patch load() to fall back to librosa when
+# torchcodec is unavailable.
+print("\n=== Fix 4: torchaudio.load() librosa fallback (no torchcodec) ===")
+target = sp / "torchaudio" / "__init__.py"
+if target.exists():
+    old = "    return load_with_torchcodec("
+    new = (
+        "    try:\n"
+        "        return load_with_torchcodec("
+    )
+    content = target.read_text()
+    if old in content and "librosa fallback" not in content:
+        patched = content.replace(
+            "    return load_with_torchcodec(\n"
+            "        uri,\n"
+            "        frame_offset=frame_offset,\n"
+            "        num_frames=num_frames,\n"
+            "        normalize=normalize,\n"
+            "        channels_first=channels_first,\n"
+            "        format=format,\n"
+            "        buffer_size=buffer_size,\n"
+            "        backend=backend,\n"
+            "    )",
+            "    try:  # librosa fallback\n"
+            "        return load_with_torchcodec(\n"
+            "            uri,\n"
+            "            frame_offset=frame_offset,\n"
+            "            num_frames=num_frames,\n"
+            "            normalize=normalize,\n"
+            "            channels_first=channels_first,\n"
+            "            format=format,\n"
+            "            buffer_size=buffer_size,\n"
+            "            backend=backend,\n"
+            "        )\n"
+            "    except ImportError:\n"
+            "        import numpy as np\n"
+            "        import librosa\n"
+            "        data, sr = librosa.load(uri, sr=None, mono=False)\n"
+            "        if data.ndim == 1:\n"
+            "            data = data[np.newaxis, :]  # [1, time]\n"
+            "        if frame_offset > 0:\n"
+            "            data = data[:, frame_offset:]\n"
+            "        if num_frames > 0:\n"
+            "            data = data[:, :num_frames]\n"
+            "        if not channels_first:\n"
+            "            data = data.T\n"
+            "        return torch.from_numpy(np.ascontiguousarray(data)), sr",
+        )
+        target.write_text(patched)
+        result = subprocess.run(
+            [sys.executable, "-c", "import torchaudio; print('torchaudio load patch OK')"],
+            capture_output=True, text=True,
+        )
+        print(result.stdout.strip() or result.stderr.strip())
+    else:
+        print("[SKIP] patch already applied or pattern not found")
+else:
+    print(f"[SKIP] {target} not found")
+
+# ── 4. piper-sample-generator ────────────────────────────────────────────────
 # PyTorch 2.6: torch.load default weights_only=True -> breaks complete models
 print("\n=== Fix 3: piper-sample-generator (torch.load weights_only=False) ===")
 

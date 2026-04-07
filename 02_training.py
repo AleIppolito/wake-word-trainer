@@ -33,6 +33,7 @@ import subprocess
 import resource
 import random
 import argparse
+import shutil
 from pathlib import Path
 
 # ─────────────────────────────────────────────
@@ -115,11 +116,44 @@ sentinels = {
 
 os.makedirs(model_dir, exist_ok=True)
 
-# Clear sentinels for steps that need to re-run
+def _clear_dir(path):
+    """Remove and recreate a directory."""
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    os.makedirs(path, exist_ok=True)
+
+
+# Clear sentinels AND output artifacts for steps that need to re-run
 for step in STEPS_ORDER:
-    if should_run(step) and sentinels[step].exists():
+    if not should_run(step):
+        continue
+    if sentinels[step].exists():
         sentinels[step].unlink()
-        print(f"[RESET] checkpoint cleared for step: {step}")
+    print(f"[RESET] clearing step: {step}")
+    if step == "split":
+        _clear_dir(pos_train)
+        _clear_dir(pos_test)
+    elif step == "generate":
+        _clear_dir(os.path.join(model_dir, "negative_train"))
+        _clear_dir(os.path.join(model_dir, "negative_test"))
+    elif step == "augment":
+        # augmented clips live alongside originals; wipe and re-split from source
+        _clear_dir(pos_train)
+        _clear_dir(pos_test)
+        # also clear negative dirs so generate re-runs cleanly if needed
+        _clear_dir(os.path.join(model_dir, "negative_train"))
+        _clear_dir(os.path.join(model_dir, "negative_test"))
+        # clear the split sentinel too so files are re-copied
+        if sentinels["split"].exists():
+            sentinels["split"].unlink()
+    elif step == "train":
+        if os.path.exists(onnx_path):
+            os.remove(onnx_path)
+    elif step == "convert":
+        for f in [tflite_final, tflite_tmp,
+                  os.path.join(output_dir, f"{model_name}_float16.tflite")]:
+            if os.path.exists(f):
+                os.remove(f)
 
 
 def step_done(step: str) -> bool:
