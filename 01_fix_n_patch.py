@@ -58,7 +58,7 @@ print("\n=== Fix 2: acoustics (sph_harm -> sph_harm_y for scipy >= 1.15) ===")
 target = sp / "acoustics" / "directivity.py"
 if target.exists():
     run(
-        f"sed -i 's/from scipy.special import sph_harm$/"
+        f"sed -i 's/from scipy.special import sph_harm/"
         f"from scipy.special import sph_harm_y as sph_harm/' {target}"
     )
     result = subprocess.run(

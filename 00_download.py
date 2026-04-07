@@ -99,33 +99,37 @@ else:
 # AudioSet
 print("\n=== Download AudioSet ===")
 if not os.path.exists("./audioset_16k"):
-    os.makedirs("audioset", exist_ok=True)
-    fname = "bal_train09.tar"
-    tar_path = f"audioset/{fname}"
-    if not os.path.exists(tar_path):
-        print(f"Downloading {fname} via huggingface_hub...")
+    import pandas as pd
+    os.makedirs("./audioset_16k", exist_ok=True)
+    # Dataset migrated from .tar to parquet; bal_train has shards 00–37
+    parquet_shards = [f"data/bal_train/{i:02d}.parquet" for i in range(38)]
+    for shard in tqdm(parquet_shards, desc="AudioSet shards"):
         cached = hf_hub_download(
             repo_id="agkphysics/AudioSet",
-            filename=f"data/{fname}",
+            filename=shard,
             repo_type="dataset",
         )
-        shutil.copy(cached, tar_path)
-    run(f"cd audioset && tar -xvf {fname}")
-    os.makedirs("./audioset_16k", exist_ok=True)
-    for flac_path in tqdm(sorted(Path("audioset/audio").glob("**/*.flac")), desc="AudioSet"):
-        data, _ = librosa.load(flac_path, sr=16000, mono=True)
-        name = flac_path.name.replace(".flac", ".wav")
-        scipy.io.wavfile.write(f"./audioset_16k/{name}", 16000,
-                               (data * 32767).astype(np.int16))
+        df = pd.read_parquet(cached)
+        for _, row in df.iterrows():
+            audio_bytes = row["audio"]["bytes"]
+            data, _ = librosa.load(io.BytesIO(audio_bytes), sr=16000, mono=True)
+            name = f"{row['video_id']}.wav"
+            scipy.io.wavfile.write(f"./audioset_16k/{name}", 16000,
+                                   (data * 32767).astype(np.int16))
 else:
     print("AudioSet already present, skipping.")
 
-# FMA (using GTZAN as a drop-in replacement — rudraml/fma uses a legacy dataset
-# script that is no longer supported in datasets>=3.0)
+# FMA (using GTZAN as a drop-in replacement — load directly from parquet to bypass
+# the legacy gtzan.py script, which is no longer supported in datasets>=3.0)
 print("\n=== Download FMA ===")
 if not os.path.exists("./fma"):
     os.mkdir("./fma")
-    fma_dataset = hf_datasets.load_dataset("marsyas/gtzan", split="train", streaming=True)
+    fma_dataset = hf_datasets.load_dataset(
+        "parquet",
+        data_files={"train": "hf://datasets/marsyas/gtzan/data/train-*.parquet"},
+        split="train",
+        streaming=True,
+    )
     fma_iter = iter(fma_dataset)
     n_hours = 1
     for i in tqdm(range(n_hours * 3600 // 30), desc="FMA"):
