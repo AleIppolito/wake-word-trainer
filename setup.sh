@@ -6,14 +6,14 @@
 # Prerequisites on the VM:
 #   - Python 3.12
 #   - CUDA 13.0 (torch 2.10.0+cu130)
-#   - ~20 GB free disk space for datasets + venv
+#   - ~200 GB free disk space for datasets + venv + training
 #
 # What it does:
-#   1. Creates the venv (if it doesn't exist)
-#   2. pip install -r requirements.txt
-#   3. Applies patches to libraries (pronouncing, acoustics)
-#   4. Clones piper-sample-generator and openwakeword
-#   5. Downloads datasets and features (~17 GB — skips if already present)
+#   1. Checks Python 3.12 and creates the venv
+#   2. pip install -r requirements.txt (--no-deps) + torchcodec
+#   3. 00_download.py - clones repos + downloads datasets (~17 GB)
+#   4. 01_fix_n_patch.py - patches pronouncing and acoustics
+#   5. Uninstalls torchcodec (conflicts with pinned dependencies)
 #
 # After:
 #   Put your recordings in ./real_recordings/ and run:
@@ -48,16 +48,26 @@ echo "=== pip install -r requirements.txt ==="
 pip install --upgrade pip -q
 pip install --no-deps -r requirements.txt
 
-# ── 4. Patch libraries ────────────────────────────────────────────────────────
+# ── 4. Install torchcodec (needed by datasets>=3.x for audio decoding) ───────
 echo ""
-echo "=== Patch libraries (00_fix_dependencies.py) ==="
-python 00_fix_dependencies.py
+echo "=== pip install torchcodec (temporary - removed after download) ==="
+pip install torchcodec
 
 # ── 5. Clone repos + download datasets ───────────────────────────────────────
 echo ""
-echo "=== Setup repos and download datasets (01_setup_and_download.py) ==="
-echo "    (ACAV100M feature download is ~17 GB — this will take a while)"
-python 01_setup_and_download.py
+echo "=== Download repos and datasets (00_download.py) ==="
+echo "    (ACAV100M feature download is ~17 GB - this will take a while)"
+python 00_download.py
+
+# ── 6. Patch incompatible dependencies ───────────────────────────────────────
+echo ""
+echo "=== Patch incompatible dependencies (01_fix_n_patch.py) ==="
+python 01_fix_n_patch.py
+
+# ── 7. Remove torchcodec (conflicts with pinned dependencies) ─────────────────
+echo ""
+echo "=== Removing torchcodec ==="
+pip uninstall -y torchcodec
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""

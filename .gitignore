@@ -2,7 +2,7 @@
 venv/
 .venv/
 
-# ── Datasets and features (downloaded by 01_setup_and_download.py) ─────────────
+# ── Datasets and features (downloaded by 00_download.py) ──────────────────────
 *.npy
 audioset/
 audioset_16k/
