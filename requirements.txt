@@ -7,12 +7,11 @@
 #   source venv/bin/activate
 #   pip install -r requirements.txt
 #   python 00_download.py       # clone repos + download datasets (~17 GB, once)
-#   python 01_fix_n_patch.py    # remove torchcodec + apply post-install patches
+#   python 01_fix_n_patch.py    # apply post-install patches
 #   python 02_training.py
 #
 # NOT included here (must be installed after git clone):
 #   - openwakeword   → pip install -e ./openwakeword --no-deps  (done by 00_download.py)
-#   - torchcodec     → installed by setup.sh before 00_download.py, removed by setup.sh after 01_fix_n_patch.py
 # ─────────────────────────────────────────────────────────────────────────────
 
 --extra-index-url https://download.pytorch.org/whl/cu130

@@ -73,8 +73,10 @@ for fname in ["embedding_model.onnx", "embedding_model.tflite",
         print(f"  {fname} already present, skipping.")
 
 # ── datasets ──────────────────────────────────────────────────────────────────
+import io
 import numpy as np
 from pathlib import Path
+import librosa
 import datasets as hf_datasets
 import scipy.io.wavfile
 from tqdm import tqdm
@@ -85,13 +87,10 @@ if not os.path.exists("./mit_rirs"):
     os.mkdir("./mit_rirs")
     run("git lfs install")
     run("git clone https://huggingface.co/datasets/davidscripka/MIT_environmental_impulse_responses")
-    rir_dataset = hf_datasets.Dataset.from_dict({
-        "audio": [str(i) for i in Path("./MIT_environmental_impulse_responses/16khz").glob("*.wav")]
-    }).cast_column("audio", hf_datasets.Audio())
-    for row in tqdm(rir_dataset, desc="MIT RIR"):
-        name = row["audio"]["path"].split("/")[-1]
-        scipy.io.wavfile.write(f"./mit_rirs/{name}", 16000,
-                               (row["audio"]["array"] * 32767).astype(np.int16))
+    for wav_path in tqdm(sorted(Path("./MIT_environmental_impulse_responses/16khz").glob("*.wav")), desc="MIT RIR"):
+        data, _ = librosa.load(wav_path, sr=16000, mono=True)
+        scipy.io.wavfile.write(f"./mit_rirs/{wav_path.name}", 16000,
+                               (data * 32767).astype(np.int16))
 else:
     print("MIT RIR already present, skipping.")
 
@@ -103,13 +102,11 @@ if not os.path.exists("audioset"):
     run(f"wget -O audioset/{fname} https://huggingface.co/datasets/agkphysics/AudioSet/resolve/main/data/{fname}")
     run("cd audioset && tar -xvf bal_train09.tar")
     os.makedirs("./audioset_16k", exist_ok=True)
-    audioset_dataset = hf_datasets.Dataset.from_dict({
-        "audio": [str(i) for i in Path("audioset/audio").glob("**/*.flac")]
-    }).cast_column("audio", hf_datasets.Audio(sampling_rate=16000))
-    for row in tqdm(audioset_dataset, desc="AudioSet"):
-        name = row["audio"]["path"].split("/")[-1].replace(".flac", ".wav")
+    for flac_path in tqdm(sorted(Path("audioset/audio").glob("**/*.flac")), desc="AudioSet"):
+        data, _ = librosa.load(flac_path, sr=16000, mono=True)
+        name = flac_path.name.replace(".flac", ".wav")
         scipy.io.wavfile.write(f"./audioset_16k/{name}", 16000,
-                               (row["audio"]["array"] * 32767).astype(np.int16))
+                               (data * 32767).astype(np.int16))
 else:
     print("AudioSet already present, skipping.")
 
@@ -118,13 +115,16 @@ print("\n=== Download FMA ===")
 if not os.path.exists("./fma"):
     os.mkdir("./fma")
     fma_dataset = hf_datasets.load_dataset("rudraml/fma", name="small", split="train", streaming=True)
-    fma_dataset = iter(fma_dataset.cast_column("audio", hf_datasets.Audio(sampling_rate=16000)))
+    fma_iter = iter(fma_dataset)
     n_hours = 1
     for i in tqdm(range(n_hours * 3600 // 30), desc="FMA"):
-        row = next(fma_dataset)
-        name = row["audio"]["path"].split("/")[-1].replace(".mp3", ".wav")
+        row = next(fma_iter)
+        audio_bytes = row["audio"]["bytes"]
+        path = row["audio"]["path"] or f"track_{i}.mp3"
+        name = path.split("/")[-1].replace(".mp3", ".wav")
+        data, _ = librosa.load(io.BytesIO(audio_bytes), sr=16000, mono=True)
         scipy.io.wavfile.write(f"./fma/{name}", 16000,
-                               (row["audio"]["array"] * 32767).astype(np.int16))
+                               (data * 32767).astype(np.int16))
 else:
     print("FMA already present, skipping.")
 
