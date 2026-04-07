@@ -75,12 +75,13 @@ for fname in ["embedding_model.onnx", "embedding_model.tflite",
 # ── datasets ──────────────────────────────────────────────────────────────────
 import io
 import numpy as np
+import pandas as pd
 from pathlib import Path
 import librosa
 import datasets as hf_datasets
 import scipy.io.wavfile
 import shutil
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, list_repo_files
 from tqdm import tqdm
 
 # MIT RIR
@@ -99,7 +100,6 @@ else:
 # AudioSet
 print("\n=== Download AudioSet ===")
 if not os.path.exists("./audioset_16k"):
-    import pandas as pd
     os.makedirs("./audioset_16k", exist_ok=True)
     # Dataset migrated from .tar to parquet; bal_train has shards 00–37
     parquet_shards = [f"data/bal_train/{i:02d}.parquet" for i in range(38)]
@@ -119,29 +119,28 @@ if not os.path.exists("./audioset_16k"):
 else:
     print("AudioSet already present, skipping.")
 
-# FMA (using GTZAN as a drop-in replacement — load directly from parquet to bypass
-# the legacy gtzan.py script, which is no longer supported in datasets>=3.0)
+# FMA (using lewtun/music_genres — parquet shards with HF Audio bytes format)
 print("\n=== Download FMA ===")
 if not os.path.exists("./fma"):
     os.mkdir("./fma")
-    fma_dataset = hf_datasets.load_dataset(
-        "parquet",
-        data_files={"train": "hf://datasets/marsyas/gtzan/data/train-*.parquet"},
-        split="train",
-        streaming=True,
+    parquet_shards = sorted(
+        f for f in list_repo_files("lewtun/music_genres", repo_type="dataset")
+        if f.startswith("data/train-") and f.endswith(".parquet")
     )
-    fma_iter = iter(fma_dataset)
-    n_hours = 1
-    for i in tqdm(range(n_hours * 3600 // 30), desc="FMA"):
-        try:
-            row = next(fma_iter)
-        except StopIteration:
-            break
-        audio_array = np.array(row["audio"]["array"], dtype=np.float32)
-        orig_sr = row["audio"]["sampling_rate"]
-        data = librosa.resample(audio_array, orig_sr=orig_sr, target_sr=16000) if orig_sr != 16000 else audio_array
-        scipy.io.wavfile.write(f"./fma/track_{i:04d}.wav", 16000,
-                               (data * 32767).astype(np.int16))
+    i = 0
+    for shard in tqdm(parquet_shards, desc="FMA shards"):
+        cached = hf_hub_download(
+            repo_id="lewtun/music_genres",
+            filename=shard,
+            repo_type="dataset",
+        )
+        df = pd.read_parquet(cached)
+        for _, row in df.iterrows():
+            audio_bytes = row["audio"]["bytes"]
+            data, _ = librosa.load(io.BytesIO(audio_bytes), sr=16000, mono=True)
+            scipy.io.wavfile.write(f"./fma/track_{i:04d}.wav", 16000,
+                                   (data * 32767).astype(np.int16))
+            i += 1
 else:
     print("FMA already present, skipping.")
 
