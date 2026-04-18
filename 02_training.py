@@ -42,8 +42,8 @@ from pathlib import Path
 RECORDINGS_SOURCE_DIR    = "./real_recordings"
 TRAIN_SPLIT              = 0.8
 AUGMENTATION_ROUNDS      = 50
-NUMBER_OF_TRAINING_STEPS = 50000
-FALSE_ACTIVATION_PENALTY = 1300
+NUMBER_OF_TRAINING_STEPS = 100000
+FALSE_ACTIVATION_PENALTY = 700
 # ─────────────────────────────────────────────
 
 STEPS_ORDER = ["split", "generate", "augment", "train", "convert"]
@@ -249,7 +249,7 @@ config["n_samples"]                           = train_count
 config["n_samples_val"]                       = test_count
 config["steps"]                               = NUMBER_OF_TRAINING_STEPS
 config["target_accuracy"]                     = 0.7
-config["target_recall"]                       = 0.5
+config["target_recall"]                       = 0.85
 config["output_dir"]                          = output_dir
 config["max_negative_weight"]                 = FALSE_ACTIVATION_PENALTY
 config["augmentation_rounds"]                 = AUGMENTATION_ROUNDS
