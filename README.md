@@ -32,7 +32,7 @@ record.py  ──────── scp ────────► real_recordi
 ### 1. Record your voice (local machine)
 
 ```bash
-pip install sounddevice soundfile numpy
+pip install -r local/requirements.txt
 python local/record.py --mode close --room cucina
 ```
 
@@ -171,7 +171,8 @@ wake-word-trainer/
 ├── requirements.txt       Pinned deps (Python 3.12 + CUDA 13.0)
 ├── _log.py                Shared logging helper (writes to log/)
 └── local/
-    └── record.py          Voice recorder — runs on local machine, not the VM
+    ├── record.py          Voice recorder — runs on local machine, not the VM
+    └── requirements.txt   Local deps only (sounddevice, soundfile, numpy)
 ```
 
 `local/` contains tools that run on your local machine. Everything else runs on the VM.

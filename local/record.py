@@ -24,7 +24,7 @@ Clips saved as: recording_NNNN_ROOM_MODE.wav
 Per-cell cap = target // (n_rooms × n_modes). Warns when a cell is full.
 
 Install deps (once):
-    pip install sounddevice soundfile numpy
+    pip install -r local/requirements.txt
 """
 
 import argparse
