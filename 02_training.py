@@ -319,7 +319,7 @@ def generate_italian_negatives(dest_dir: str, n_clips: int, phrase: str) -> bool
 
             for wav in sorted(Path(tmpdir).glob("*.wav")):
                 dst = os.path.join(dest_dir, f"neg_{total:04d}.wav")
-                _data, _sr = scipy.io.wavfile.read(str(wav))
+                _sr, _data = scipy.io.wavfile.read(str(wav))
                 if _sr != 16000:
                     from math import gcd as _gcd
                     from scipy.signal import resample_poly as _rp
