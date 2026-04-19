@@ -38,7 +38,8 @@ pandas
 requests
 
 # ── TensorFlow (needed by onnx2tf for TFLite conversion) ─────────────────────
-tensorflow-cpu
+tensorflow
+tf-keras
 
 # ── ONNX / TFLite ─────────────────────────────────────────────────────────────
 ai-edge-litert
