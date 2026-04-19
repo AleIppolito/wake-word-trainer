@@ -293,22 +293,25 @@ for _ta_file in [
         print("[SKIP] not found")
 
 # ── 10. train.py: lazy generate_samples import ───────────────────────────────
-# train.py does a module-level import of generate_samples from piper-sample-generator.
-# On the italian-tts branch piper-sample-generator is not cloned; make the import
-# lazy so --augment_clips and --train_model work without it.
+# train.py imports generate_samples from piper-sample-generator inside a function
+# body (indented). str.replace on just the inner text loses the indentation context.
+# Use re.sub with a capture group to preserve whatever leading whitespace exists.
+import re as _re
 print("\n=== Fix 10: train.py — lazy generate_samples import ===")
 if train_py.exists():
     content = train_py.read_text()
-    old = "from generate_samples import generate_samples"
-    new = (
-        "try:\n"
-        "    from generate_samples import generate_samples\n"
-        "except ImportError:\n"
-        "    generate_samples = None"
-    )
-    if old in content:
-        train_py.write_text(content.replace(old, new))
-        print("  applied: generate_samples import is now lazy")
+    _pattern = r'( *)from generate_samples import generate_samples'
+    _match = _re.search(_pattern, content)
+    if _match and "except ImportError" not in content:
+        ind = _match.group(1)
+        new = (
+            f"{ind}try:\n"
+            f"{ind}    from generate_samples import generate_samples\n"
+            f"{ind}except ImportError:\n"
+            f"{ind}    generate_samples = None"
+        )
+        train_py.write_text(_re.sub(_pattern, new, content, count=1))
+        print(f"  applied: generate_samples import is now lazy (indent={repr(ind)})")
     else:
         print("  [SKIP] already patched or pattern not found")
 else:
