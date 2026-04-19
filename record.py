@@ -2,17 +2,25 @@
 """
 Record and validate wake word clips.
 
-Recording mode:
-    python record.py --mode close --room cucina [--target 500] [--rec-dir ./real_recordings]
+Recording mode (manual):
+    python record.py --mode close --room cucina
+    Enter = record next clip    q + Enter = quit
+
+Recording mode (auto-loop):
+    python record.py --mode far --room sala --auto [--pause 2.0]
+    Loops continuously. Ctrl+C to stop.
+    Audio cues: high beep = start speaking, low beep = stop.
 
     --mode   close | mid | far | other   (microphone distance)
     --room   any name (cucina, sala, camera, ...)
     --target total clip target across all cells (default: 500)
+    --auto   loop automatically without keypresses
+    --pause  seconds between clips in auto mode (default: 2.0)
 
 Validate existing clips without recording:
     python record.py --validate [--rec-dir ./real_recordings]
 
-Clips are saved as:  recording_NNNN_ROOM_MODE.wav
+Clips saved as: recording_NNNN_ROOM_MODE.wav
 Per-cell cap = target // (n_rooms × n_modes). Warns when a cell is full.
 
 Install deps (once):
@@ -41,17 +49,30 @@ DURATION       = 2.0
 RMS_FLOOR      = 0.005
 CLIP_THRESHOLD = 0.99
 ENERGY_THRESH  = 0.01
-FRAME_LEN      = 0.02   # seconds per energy frame
-ONSET_MAX_S    = 0.5    # max leading silence before speech
-OFFSET_MAX_S   = 0.3    # max trailing silence after speech
+FRAME_LEN      = 0.02
+ONSET_MAX_S    = 0.5
+OFFSET_MAX_S   = 0.3
 
-MODES = ("close", "mid", "far", "other")
+MODES  = ("close", "mid", "far", "other")
 TAG_RE = re.compile(r'^recording_\d{4}_(.+)_(close|mid|far|other)\.wav$')
+
+
+# ── Audio cues ────────────────────────────────────────────────────────────────
+def _beep(freq: float, duration_s: float = 0.12, volume: float = 0.4):
+    t     = np.linspace(0, duration_s, int(SAMPLE_RATE * duration_s), endpoint=False)
+    tone  = (np.sin(2 * np.pi * freq * t) * volume * 32767).astype(np.int16)
+    # fade out last 20% to avoid click
+    fade  = int(len(tone) * 0.2)
+    tone[-fade:] = (tone[-fade:] * np.linspace(1, 0, fade)).astype(np.int16)
+    sd.play(tone, samplerate=SAMPLE_RATE)
+    sd.wait()
+
+def beep_start(): _beep(880)        # high — speak now
+def beep_stop():  _beep(440, 0.08)  # low  — window closed
 
 
 # ── Quality check ─────────────────────────────────────────────────────────────
 def validate_clip(data: np.ndarray, sr: int) -> list[str]:
-    """Return list of issue strings. Empty = good clip."""
     issues = []
     if data.ndim > 1:
         data = data.mean(axis=1)
@@ -82,16 +103,15 @@ def validate_clip(data: np.ndarray, sr: int) -> list[str]:
         onset_s  = speech[0]  * FRAME_LEN
         offset_s = (n_frames - speech[-1] - 1) * FRAME_LEN
         if onset_s > ONSET_MAX_S:
-            issues.append(f"late onset ({onset_s:.2f}s silence at start — speak sooner)")
+            issues.append(f"late onset ({onset_s:.2f}s — speak sooner after beep)")
         if offset_s > OFFSET_MAX_S:
-            issues.append(f"early cutoff ({offset_s:.2f}s silence at end — word cut off?)")
+            issues.append(f"early cutoff ({offset_s:.2f}s — word may be cut off)")
 
     return issues
 
 
 # ── Matrix helpers ─────────────────────────────────────────────────────────────
 def scan_clips(rec_dir: Path) -> dict:
-    """Parse existing clip filenames -> matrix[room][mode] = count."""
     matrix = defaultdict(lambda: defaultdict(int))
     for wav in sorted(rec_dir.glob("*.wav")):
         m = TAG_RE.match(wav.name)
@@ -131,29 +151,63 @@ def print_matrix(matrix: dict, target: int, cur_room: str = None, cur_mode: str 
         for mode in modes:
             count = matrix[room][mode]
             cell  = f"{count}/{per_cell}"
-            full  = count >= per_cell
-            flag  = "!" if full and room == cur_room and mode == cur_mode else ""
+            flag  = "!" if count >= per_cell and room == cur_room and mode == cur_mode else ""
             row  += (cell + flag).center(col_w)
         print(f"  {row}{marker}")
     print(f"  {sep}")
     print(f"  Total: {total} / {target}")
 
-    if cur_room and cur_mode:
-        cur_count = matrix[cur_room][cur_mode]
-        if cur_count >= per_cell:
-            print(f"\n  [!] Cell {cur_room}×{cur_mode} full ({cur_count}/{per_cell})")
-            print(f"      Consider switching room or distance.")
+    if cur_room and cur_mode and matrix[cur_room][cur_mode] >= per_cell:
+        print(f"\n  [!] Cell {cur_room}×{cur_mode} full ({matrix[cur_room][cur_mode]}/{per_cell})")
+        print(f"      Consider switching room or distance.")
 
     return per_cell
 
 
 def next_clip_number(rec_dir: Path) -> int:
-    nums = []
-    for wav in rec_dir.glob("*.wav"):
-        m = re.match(r'^recording_(\d{4})', wav.name)
-        if m:
-            nums.append(int(m.group(1)))
+    nums = [
+        int(m.group(1))
+        for wav in rec_dir.glob("*.wav")
+        if (m := re.match(r'^recording_(\d{4})', wav.name))
+    ]
     return max(nums) + 1 if nums else 0
+
+
+# ── Record one clip (shared by manual + auto) ─────────────────────────────────
+def record_one(args, matrix, count, per_cell, session_good, session_bad):
+    """Record, validate, and save one clip. Returns updated (count, session_good, session_bad)."""
+    print(f"  >>> SPEAK NOW <<<", flush=True)
+    beep_start()
+
+    audio = sd.rec(
+        int(DURATION * SAMPLE_RATE),
+        samplerate=SAMPLE_RATE,
+        channels=1,
+        dtype="int16",
+    )
+    sd.wait()
+    beep_stop()
+
+    flat   = audio.flatten().astype(np.float32) / 32768.0
+    issues = validate_clip(flat, SAMPLE_RATE)
+
+    if issues:
+        session_bad += 1
+        print(f"  ✗  REJECTED — {' | '.join(issues)}")
+        return count, session_good, session_bad
+
+    filename = args.rec_dir / f"recording_{count:04d}_{args.room}_{args.mode}.wav"
+    sf.write(str(filename), audio, SAMPLE_RATE, subtype="PCM_16")
+    matrix[args.room][args.mode] += 1
+    session_good += 1
+    count += 1
+    print(f"  ✓  {filename.name}")
+
+    if matrix[args.room][args.mode] == per_cell:
+        print(f"\n  [!] Cell {args.room}×{args.mode} reached target ({per_cell}).")
+        print(f"      Switch room or distance for better variety.\n")
+
+    return count, session_good, session_bad
 
 
 # ── Validate mode ─────────────────────────────────────────────────────────────
@@ -163,9 +217,9 @@ def run_validate(rec_dir: Path):
         print(f"[ERROR] No WAV files in {rec_dir}")
         sys.exit(1)
 
-    matrix  = scan_clips(rec_dir)
+    matrix = scan_clips(rec_dir)
     rooms, modes = all_rooms_modes(matrix)
-    total = len(wavs)
+    total    = len(wavs)
     untagged = total - sum(matrix[r][m] for r in rooms for m in modes)
 
     print(f"\n{'='*52}")
@@ -195,9 +249,8 @@ def run_validate(rec_dir: Path):
     print(f"\n  OK:      {len(ok)}")
     print(f"  Bad:     {len(bad)}")
     if untagged:
-        print(f"  Untagged (legacy format): {untagged}")
+        print(f"  Untagged (legacy): {untagged}")
 
-    # Print matrix if there are tagged clips
     if any(matrix[r][m] for r in rooms for m in modes):
         print_matrix(matrix, target=500)
 
@@ -206,69 +259,53 @@ def run_validate(rec_dir: Path):
 def run_record(args):
     args.rec_dir.mkdir(parents=True, exist_ok=True)
     matrix = scan_clips(args.rec_dir)
-    matrix[args.room][args.mode]  # ensure current cell exists
+    matrix[args.room][args.mode]
 
+    hints = {"close": "(~20 cm)", "mid": "(~50 cm)", "far": "(~1 m)", "other": ""}
     print("=" * 52)
     print("  Wake Word Recorder")
     print("=" * 52)
     print(f"  Room:   {args.room}")
-    print(f"  Mode:   {args.mode}  ", end="")
-    hints = {"close": "(~20 cm)", "mid": "(~50 cm)", "far": "(~1 m)", "other": ""}
-    print(hints.get(args.mode, ""))
+    print(f"  Mode:   {args.mode}  {hints.get(args.mode, '')}")
     print(f"  Output: {args.rec_dir}/")
-    print()
-    print("  Tips: vary pitch, speed, energy across clips.")
-    print("  Enter = record    q + Enter = quit")
+    if args.auto:
+        print(f"  Mode:   AUTO  (pause={args.pause}s between clips)  Ctrl+C to stop")
+        print(f"  Cues:   high beep = speak  |  low beep = stop")
+    else:
+        print(f"  Enter = record    q + Enter = quit")
+    print(f"\n  Tips: vary pitch, speed, energy across clips.")
 
     per_cell = print_matrix(matrix, args.target, args.room, args.mode)
     print()
 
-    count = next_clip_number(args.rec_dir)
+    count        = next_clip_number(args.rec_dir)
     session_good = 0
     session_bad  = 0
 
     try:
-        while True:
-            cur = matrix[args.room][args.mode]
-            full_marker = " [FULL]" if cur >= per_cell else ""
-            prompt = f"  [{count:4d} total | {args.room}×{args.mode}: {cur}/{per_cell}{full_marker}]  > "
-            cmd = input(prompt).strip().lower()
-
-            if cmd == "q":
-                break
-
-            print("  ", end="", flush=True)
-            for i in range(3, 0, -1):
-                print(f"{i}.. ", end="", flush=True)
-                time.sleep(0.35)
-            print(">>> SPEAK NOW <<<")
-
-            audio = sd.rec(
-                int(DURATION * SAMPLE_RATE),
-                samplerate=SAMPLE_RATE,
-                channels=1,
-                dtype="int16",
-            )
-            sd.wait()
-
-            flat = audio.flatten().astype(np.float32) / 32768.0
-            issues = validate_clip(flat, SAMPLE_RATE)
-
-            if issues:
-                session_bad += 1
-                print(f"  ✗  REJECTED — {' | '.join(issues)}")
-                continue
-
-            filename = args.rec_dir / f"recording_{count:04d}_{args.room}_{args.mode}.wav"
-            sf.write(str(filename), audio, SAMPLE_RATE, subtype="PCM_16")
-            matrix[args.room][args.mode] += 1
-            session_good += 1
-            count += 1
-            print(f"  ✓  {filename.name}")
-
-            if matrix[args.room][args.mode] == per_cell:
-                print(f"\n  [!] Cell {args.room}×{args.mode} reached target ({per_cell}).")
-                print(f"      Switch to a different room or distance for better variety.\n")
+        if args.auto:
+            while True:
+                cur = matrix[args.room][args.mode]
+                print(f"\n  [{count:4d} total | {args.room}×{args.mode}: {cur}/{per_cell}]")
+                count, session_good, session_bad = record_one(
+                    args, matrix, count, per_cell, session_good, session_bad
+                )
+                time.sleep(args.pause)
+        else:
+            while True:
+                cur         = matrix[args.room][args.mode]
+                full_marker = " [FULL]" if cur >= per_cell else ""
+                prompt      = f"  [{count:4d} total | {args.room}×{args.mode}: {cur}/{per_cell}{full_marker}]  > "
+                cmd         = input(prompt).strip().lower()
+                if cmd == "q":
+                    break
+                print("  ", end="", flush=True)
+                for i in range(3, 0, -1):
+                    print(f"{i}.. ", end="", flush=True)
+                    time.sleep(0.3)
+                count, session_good, session_bad = record_one(
+                    args, matrix, count, per_cell, session_good, session_bad
+                )
 
     except KeyboardInterrupt:
         print()
@@ -284,10 +321,13 @@ parser = argparse.ArgumentParser(
     description="Record and validate wake word clips.",
     formatter_class=argparse.RawDescriptionHelpFormatter,
 )
-parser.add_argument("--mode",     choices=MODES, help="Microphone distance")
+parser.add_argument("--mode",     choices=MODES)
 parser.add_argument("--room",     help="Room name (e.g. cucina, sala, camera)")
-parser.add_argument("--target",   type=int, default=500)
-parser.add_argument("--rec-dir",  type=Path, default=Path("./real_recordings"))
+parser.add_argument("--target",   type=int,   default=500)
+parser.add_argument("--rec-dir",  type=Path,  default=Path("./real_recordings"))
+parser.add_argument("--auto",     action="store_true", help="Loop automatically")
+parser.add_argument("--pause",    type=float, default=2.0,
+                    help="Seconds between clips in auto mode (default: 2.0)")
 parser.add_argument("--validate", action="store_true",
                     help="Validate existing clips without recording")
 args = parser.parse_args()
