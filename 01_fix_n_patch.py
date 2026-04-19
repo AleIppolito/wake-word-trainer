@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 """
-STEP 1 - Remove temporary dependencies and apply patches to installed libraries.
+STEP 1 - Apply patches to installed libraries.
 Run ONCE after: python 00_download.py
 
 Actions:
-  1. pronouncing: uses pkg_resources (removed in 3.12) -> replaced with importlib.resources
   2. acoustics:   sph_harm renamed in scipy >= 1.15 -> sph_harm_y
+  3. piper:       torch.load weights_only=False (torch >= 2.6)  [no-op if piper-sample-generator absent]
+  4. torchaudio:  load() librosa fallback when torchcodec absent (removed in 2.9+)
+  5. torchaudio:  info() soundfile stub (removed in 2.9+)
+  6. train.py:    --convert_to_tflite default='False' bug (string always truthy)
+  7. train.py:    ONNX export — add .eval() + opset 13->18
+  8. train.py:    suppress onnxscript/onnx_ir DEBUG spam
+  9. torch_audiomentations: silence output_type FutureWarning/DeprecationWarning
+ 10. train.py:    make generate_samples import lazy (piper-sample-generator not required)
 """
 
 import subprocess
@@ -32,40 +39,24 @@ def find_site_packages():
 sp = find_site_packages()
 print(f"site-packages: {sp}")
 
-# ── 1. pronouncing ────────────────────────────────────────────────────────────
-# ModuleNotFoundError: No module named 'pkg_resources'
-# File: pronouncing/__init__.py line 3: from pkg_resources import resource_stream
-print("\n=== Fix 1: pronouncing (pkg_resources -> importlib.resources) ===")
-target = sp / "pronouncing" / "__init__.py"
-if target.exists():
-    run(
-        f"sed -i 's/from pkg_resources import resource_stream/"
-        f"from importlib.resources import open_binary as resource_stream/' {target}"
-    )
-    run(f"find {sp} -name '*.pyc' -path '*/pronouncing*' -delete")
-    result = subprocess.run(
-        [sys.executable, "-c", "import pronouncing; print('pronouncing OK')"],
-        capture_output=True, text=True,
-    )
-    print(result.stdout.strip() or result.stderr.strip())
-else:
-    print(f"[SKIP] {target} not found")
-
 # ── 2. acoustics ──────────────────────────────────────────────────────────────
 # ImportError: cannot import name 'sph_harm' from 'scipy.special'
 # File: acoustics/directivity.py line 20: from scipy.special import sph_harm
 print("\n=== Fix 2: acoustics (sph_harm -> sph_harm_y for scipy >= 1.15) ===")
 target = sp / "acoustics" / "directivity.py"
 if target.exists():
-    run(
-        f"sed -i 's/from scipy.special import sph_harm/"
-        f"from scipy.special import sph_harm_y as sph_harm/' {target}"
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", "import acoustics; print('acoustics OK')"],
-        capture_output=True, text=True,
-    )
-    print(result.stdout.strip() or result.stderr.strip())
+    if "sph_harm_y" in target.read_text():
+        print("[SKIP] already patched")
+    else:
+        run(
+            f"sed -i 's/from scipy.special import sph_harm/"
+            f"from scipy.special import sph_harm_y as sph_harm/' {target}"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", "import acoustics; print('acoustics OK')"],
+            capture_output=True, text=True,
+        )
+        print(result.stdout.strip() or result.stderr.strip())
 else:
     print(f"[SKIP] {target} not found")
 
@@ -97,9 +88,6 @@ if target.exists():
         print("[SKIP] torchaudio.info already defined")
 else:
     print(f"[SKIP] {target} not found")
-
-print("\n=== Patches applied ===")
-print("Next: python 02_training.py")
 
 # ── train.py patches ──────────────────────────────────────────────────────────
 # openwakeword/openwakeword/train.py has several issues fixed below.
@@ -247,27 +235,26 @@ else:
 
 # ── 3. piper-sample-generator ────────────────────────────────────────────────
 # PyTorch 2.6: torch.load default weights_only=True -> breaks complete models
+# No-op if piper-sample-generator was not cloned (Italian branch uses piper-tts instead).
 print("\n=== Fix 3: piper-sample-generator (torch.load weights_only=False) ===")
-
 target = Path("./piper-sample-generator/generate_samples.py")
-
 if target.exists():
     run(
         f"sed -i 's/torch.load(model_path)/torch.load(model_path, weights_only=False)/' {target}"
     )
-
     result = subprocess.run(
         [sys.executable, "-c", f"import sys; sys.path.append('./piper-sample-generator'); import generate_samples; print('piper patch OK')"],
         capture_output=True, text=True,
     )
     print(result.stdout.strip() or result.stderr.strip())
 else:
-    print(f"[SKIP] {target} not found")
+    print(f"[SKIP] {target} not found — piper-sample-generator not cloned (expected on italian-tts branch)")
 
 # ── 9. torch_audiomentations FutureWarning ───────────────────────────────────
 # output_type=None triggers a FutureWarning; output_type="tensor" a
 # DeprecationWarning. Both branches only warn, no other logic. Replace both
 # with a silent default so behaviour is unchanged but the noise is gone.
+# No-op if upstream (>= 0.12.0) already removed the warning block.
 print("\n=== Fix 9: torch_audiomentations — silence output_type warnings ===")
 _warn_block = (
     '        if output_type is None:\n'
@@ -307,3 +294,39 @@ for _ta_file in [
             print("[SKIP] already patched or pattern not found")
     else:
         print("[SKIP] not found")
+
+# ── 10. train.py: lazy generate_samples import ───────────────────────────────
+# train.py imports generate_samples from piper-sample-generator inside a function
+# body (indented). str.replace on just the inner text loses the indentation context.
+# Use re.sub with a capture group to preserve whatever leading whitespace exists.
+import re as _re
+print("\n=== Fix 10: train.py — lazy generate_samples import ===")
+if train_py.exists():
+    content = train_py.read_text()
+    _pattern = r'( *)from generate_samples import generate_samples'
+    # Repair previously mis-patched version (wrong indentation from str.replace)
+    _bad = '    try:\n    from generate_samples import generate_samples\nexcept ImportError:\n    generate_samples = None'
+    _good = '    try:\n        from generate_samples import generate_samples\n    except ImportError:\n        generate_samples = None'
+    if _bad in content:
+        train_py.write_text(content.replace(_bad, _good))
+        content = train_py.read_text()
+        print("  repaired: fixed bad indentation from previous patch run")
+
+    _match = _re.search(_pattern, content)
+    if _match and "except ImportError" not in content:
+        ind = _match.group(1)
+        new = (
+            f"{ind}try:\n"
+            f"{ind}    from generate_samples import generate_samples\n"
+            f"{ind}except ImportError:\n"
+            f"{ind}    generate_samples = None"
+        )
+        train_py.write_text(_re.sub(_pattern, new, content, count=1))
+        print(f"  applied: generate_samples import is now lazy (indent={repr(ind)})")
+    else:
+        print("  [SKIP] already patched or pattern not found")
+else:
+    print(f"  [SKIP] {train_py} not found")
+
+print("\n=== Patches applied ===")
+print("Next: python 02_training.py")

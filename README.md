@@ -1,6 +1,6 @@
 # Wake Word Trainer - openWakeWord
 
-Train a custom wake word model using your own voice recordings and the [openWakeWord](https://github.com/dscripka/openwakeword) framework. The pipeline uses real voice samples (no synthetic TTS for positive examples) and produces both ONNX and TFLite models ready for deployment.
+Train a custom wake word model using real voice recordings and the [openWakeWord](https://github.com/dscripka/openwakeword) framework. Produces ONNX and TFLite models.
 
 ---
 
@@ -15,73 +15,55 @@ Train a custom wake word model using your own voice recordings and the [openWake
 
 ---
 
-## Pipeline overview
+## Pipeline
 
 ```
-[any machine]                     [Linux server / VM]
+[any machine]                     [Linux VM]
 record.py  ──────── scp ────────► real_recordings/
                                   │
-                                  ├─ 00_download.py    (clone repos + download ~17 GB)
-                                  ├─ 01_fix_n_patch.py (patch libraries)
-                                  └─ 02_training.py    (train + export)
+                                  ├─ bash setup.sh          (one-time)
+                                  └─ python 02_training.py  (train + export)
 ```
 
 ---
 
-## Step-by-step usage
+## Step-by-step
 
-### 1. Record your voice
-
-Run on any machine with a microphone:
+### 1. Record your voice (local machine)
 
 ```bash
 pip install sounddevice soundfile numpy
 python record.py
 ```
 
-Press **Enter** to record a 2-second clip, say your wake word when prompted, then repeat.
-Press `q` to quit. Aim for **at least 200 clips** (300+ recommended).
+Press **Enter** to record a 2-second clip, `q` to quit. Aim for **300+ clips**.
 
-Tips for a robust model:
-- Vary your distance from the mic (20 cm / 50 cm / 1 m)
-- Vary pitch, speed, and volume
-- Record in different rooms if possible
+Tips:
+- Vary distance: 20 cm / 50 cm / 1 m
+- Vary pitch, speed, volume
+- Record in different rooms
 
-Clips are saved in `real_recordings/`. Transfer them to the server:
+Transfer recordings to the VM:
 
 ```bash
-scp -r real_recordings/ root@<SERVER_IP>:/root/wake-word-trainer/real_recordings
+scp -r real_recordings/ root@<SERVER_IP>:/path/to/wake-word-trainer/real_recordings
 ```
 
 ---
 
-### 2. Full setup (one-time, on the server)
-
-The easiest path is the all-in-one script:
+### 2. Setup (one-time, on the VM)
 
 ```bash
+git clone <repo>
+cd wake-word-trainer
 bash setup.sh
 ```
 
 This will:
 1. Create a Python 3.12 venv at `./.venv`
-2. Install all dependencies from `requirements.txt` (+ `torchcodec` temporarily)
-3. Clone `piper-sample-generator` and `openwakeword`, download all training data (~17 GB)
+2. Install all dependencies from `requirements.txt`
+3. Clone `openwakeword`, download all training data (~17 GB)
 4. Apply compatibility patches (`01_fix_n_patch.py`)
-5. Uninstall `torchcodec` (conflicts with pinned deps)
-
-Alternatively, run each step manually:
-
-```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install --no-deps -r requirements.txt
-pip install torchcodec
-python 00_download.py
-python 01_fix_n_patch.py
-pip uninstall -y torchcodec
-```
 
 **Downloaded assets:**
 
@@ -89,125 +71,128 @@ pip uninstall -y torchcodec
 |---|---|---|
 | `openwakeword_features_ACAV100M_2000_hrs_16bit.npy` | ~17 GB | Pre-computed background features |
 | `validation_set_features.npy` | ~180 MB | Validation set |
-| `mit_rirs/` | small | Room impulse responses for augmentation |
-| `audioset_16k/` | ~1 GB | Background noise |
-| `fma/` | ~1 GB | Background music (1 hour) |
+| `mit_rirs/` | small | Room impulse responses |
+| `audioset_16k/` | ~1 GB | Background noise (negatives) |
+| `fma/` | ~1 GB | Background music (negatives) |
+| `librispeech_16k/` | ~500 MB | Real speech negatives (FP suppression for speech) |
 
 ---
 
-### 3. Train the model
+### 3. Train
 
 ```bash
 source .venv/bin/activate
-python 02_training.py
+python 02_training.py "hey murph"
 ```
 
-You will be prompted to type your wake word phrase. This is used to generate adversarial TTS negative samples (a synthesized voice saying the phrase, so the model learns to reject near-matches) and to name the output files.
+**Key options:**
 
-**What it does:**
+| Flag | Default | Description |
+|---|---|---|
+| `--steps` | 100000 | Training steps |
+| `--penalty` | 300 | False activation weight penalty |
+| `--aug-rounds` | 150 | Augmentation rounds per clip |
+| `--neg-train` | 200 | Audioset clips for negative train |
+| `--neg-test` | 50 | Audioset clips for negative test |
+| `--neg-speech-train` | 200 | LibriSpeech clips for negative train |
+| `--neg-speech-test` | 50 | LibriSpeech clips for negative test |
+| `--force` | — | Re-run all steps from scratch |
+| `--from STEP` | — | Re-run from step: `split\|generate\|augment\|train\|convert` |
 
-1. Prompts for the wake word phrase
-2. Validates that `./real_recordings/` contains at least 20 WAV files
-3. Splits them 80% train / 20% test, resampling to 16 kHz if needed
-4. Generates adversarial negative clips via TTS (Piper)
-5. Augments positive clips (default: ×50 rounds → 10 000+ examples)
-6. Trains the DNN model for up to 50 000 steps
-7. Converts the output ONNX model to TFLite (float32 + float16)
-
-**Output files:**
+**Output:**
 
 ```
 my_custom_model/
-├── <model_name>.onnx
-├── <model_name>.tflite        (float32)
-└── <model_name>_float16.tflite
+├── hey_murph.onnx
+├── hey_murph.tflite        (float32, requires tensorflow-cpu)
+└── hey_murph_float16.tflite
 ```
 
-where `<model_name>` is the wake word phrase with spaces replaced by underscores.
-
 ---
 
-## Configuration reference
-
-Key parameters at the top of `02_training.py`:
-
-| Parameter | Default | Description |
-|---|---|---|
-| `RECORDINGS_SOURCE_DIR` | `./real_recordings` | Folder with your WAV recordings |
-| `TRAIN_SPLIT` | `0.8` | Fraction used for training (rest = test) |
-| `AUGMENTATION_ROUNDS` | `50` | How many times to augment each clip |
-| `NUMBER_OF_TRAINING_STEPS` | `50000` | Max training steps |
-| `FALSE_ACTIVATION_PENALTY` | `1300` | Weight penalty for false positives |
-
----
-
-## Known issues and fixes
-
-### `ModuleNotFoundError: No module named 'pkg_resources'`
-
-**Cause:** `pronouncing` uses `pkg_resources`, which was removed from the standard library in Python 3.12.
-
-**Fix:** Handled automatically by `01_fix_n_patch.py`. It patches `pronouncing/__init__.py` to use `importlib.resources` instead.
-
----
-
-### `ImportError: cannot import name 'sph_harm' from 'scipy.special'`
-
-**Cause:** `acoustics` imports `sph_harm`, which was renamed to `sph_harm_y` in SciPy ≥ 1.15.
-
-**Fix:** Handled automatically by `01_fix_n_patch.py`. It patches `acoustics/directivity.py` with an alias import.
-
----
-
-### Wake word not activating reliably
-
-- Lower `FALSE_ACTIVATION_PENALTY` (try 1000–1500)
-- Add more recording variety (different environments, distances)
-- Increase `AUGMENTATION_ROUNDS`
-
----
-
-### Too many false positives
-
-- Raise `FALSE_ACTIVATION_PENALTY` (try 2500–3000)
-- Re-run `02_training.py` with the updated value
-
----
-
-### Training crashes at augmentation step (too many open files)
-
-`02_training.py` automatically raises the file descriptor limit to 65536 via `ulimit`. If you still hit the limit, raise it manually before running:
+### 4. Evaluate
 
 ```bash
-ulimit -n 65536
+python eval.py my_custom_model/hey_murph.onnx
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--rec-dir` | `./real_recordings` | Recordings for recall eval |
+| `--fp-dir` | `./audioset_16k` | Background clips for FP eval |
+| `--threshold` | 0.3 | Score threshold |
+| `--fp-samples` | 500 | Background clips to sample |
+
+**Targets:**
+
+| Metric | Good | Acceptable |
+|---|---|---|
+| Recall | > 80% | > 70% |
+| FP/hour | < 0.5 | < 1.0 |
+
+---
+
+### 5. Validate recordings (optional)
+
+```bash
+python validate_recordings.py [recordings_dir]
+```
+
+Flags bad clips by duration, RMS, onset/offset silence, and clipping.
+
+---
+
+## Architecture
+
+openWakeWord 3-stage ONNX pipeline:
+```
+WAV → melspectrogram.onnx → embedding_model.onnx → hey_murph.onnx → score
+```
+- mel: 76-frame window, 32 features, 80ms chunks (1280 samples @ 16 kHz)
+- emb: 96-dim embedding per window
+- wake: takes **16** embedding frames → scalar score (0–1)
+
+**Critical:** `EMB_WINDOW` must be **16**. Model input shape is `(1, 16, 96)`.
+
+---
+
+## VM setup notes (CUDA situation)
+
+The VM has both CUDA 13.0 and CUDA 12.9. PyTorch uses 13.0; ORT needs CUDA 12.9 libs. `setup.sh` handles this automatically.
+
+If ORT falls back to CPU, verify:
+```bash
+source .venv/bin/activate
+python -c "import onnxruntime as ort; print(ort.get_available_providers())"
+# should include CUDAExecutionProvider
 ```
 
 ---
 
-### `onnx2tf` TFLite conversion fails
+## Known issues and fixes (handled by `01_fix_n_patch.py`)
 
-The conversion uses a fixed key axis tag (`-kat onnx____Flatten_0`). If the ONNX graph changes due to a different openwakeword version, this tag may be wrong. Check the onnx2tf output for the correct tensor name and update the flag in `02_training.py`:
+| Fix | Cause |
+|---|---|
+| `acoustics/directivity.py`: `sph_harm` → `sph_harm_y` | scipy ≥ 1.15 renamed it |
+| `torchaudio.info()` stub | removed in torchaudio 2.9+ |
+| `torchaudio.load()` librosa fallback | torchcodec removed in 2.9+ |
+| `train.py` `--convert_to_tflite` default bug | string `"False"` is always truthy |
+| `train.py` ONNX export: add `.eval()` + opset 13→18 | LayerNorm requires opset ≥ 17 |
+| `train.py` suppress onnxscript/onnx_ir DEBUG spam | hundreds of irrelevant log lines |
+| `torch_audiomentations` FutureWarning | noisy deprecation warnings |
+| `train.py` lazy `generate_samples` import | piper-sample-generator not required |
 
+---
+
+## TFLite conversion
+
+TFLite (for RPi deployment) requires `tensorflow-cpu` (~500 MB). It is included in `requirements.txt`. If you don't need TFLite, the ONNX model is ready after the `train` step.
+
+If `onnx2tf` conversion fails, check the key axis tag:
 ```python
-run(f"onnx2tf -i {onnx_path} -o my_custom_model/ -kat <correct_tensor_name>")
+# In 02_training.py convert step:
+run(f"onnx2tf -i {onnx_path} -o {output_dir}/ -kat onnx____Flatten_0")
+# Update -kat value if the ONNX graph changes
 ```
-
----
-
-## Project structure
-
-```
-wake-word-trainer/
-├── setup.sh                    # One-command full setup
-├── requirements.txt            # Pinned dependencies (Python 3.12 + CUDA 13.0)
-├── 00_download.py              # Clone repos + download datasets
-├── 01_fix_n_patch.py           # Post-install patches for pronouncing & acoustics
-├── 02_training.py              # Main training pipeline
-└── record.py                   # Voice recorder
-```
-
----
-
-## License
-
-This project is a training harness that wraps [openWakeWord](https://github.com/dscripka/openwakeword) and [piper-sample-generator](https://github.com/rhasspy/piper-sample-generator). Refer to their respective licenses for redistribution terms.
