@@ -18,7 +18,7 @@ Recording mode (auto-loop):
     --pause  seconds between clips in auto mode (default: 2.0)
 
 Validate existing clips without recording:
-    python record.py --validate [--rec-dir ./real_recordings]
+    python record.py --validate [--rec-dir ./real_rec_raw]
 
 Clips saved as: recording_NNNN_ROOM_MODE.wav
 Per-cell cap = target // (n_rooms × n_modes). Warns when a cell is full.
@@ -330,7 +330,7 @@ parser.add_argument("--room",     help="Room name (e.g. cucina, sala, camera)")
 parser.add_argument("--target",   type=int,   default=500)
 parser.add_argument("--max",      type=int,   default=None,
                     help="Max clips per room×mode cell. Default: target // (3×3) = 55")
-parser.add_argument("--rec-dir",  type=Path,  default=Path("./real_recordings"))
+parser.add_argument("--rec-dir",  type=Path,  default=Path("./real_rec_raw"))
 parser.add_argument("--auto",     action="store_true", help="Loop automatically")
 parser.add_argument("--pause",    type=float, default=2.0,
                     help="Seconds between clips in auto mode (default: 2.0)")

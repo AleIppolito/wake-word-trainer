@@ -24,8 +24,9 @@ my_custom_model/
 *.yaml
 
 # ── Voice recordings ──────────────────────────────────────────────────────────
-real_recordings/
-real_recordings_backup/
+real_rec_raw/
+real_rec_raw_backup/
+real_rec_prepared/
 
 # ── Logs (auto-created, for debugging) ───────────────────────────────────────
 log/

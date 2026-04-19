@@ -15,7 +15,7 @@
 #   4. 01_fix_n_patch.py - patches acoustics, torchaudio, openwakeword/train.py
 #
 # After:
-#   Put your recordings in ./real_recordings/ and run:
+#   Put your recordings in ./real_rec_raw/ and run:
 #   python 02_training.py
 # ─────────────────────────────────────────────────────────────────────────────
 set -e
@@ -95,9 +95,9 @@ echo "  Setup complete."
 echo ""
 echo "  Next steps:"
 echo "    1. Transfer your recordings to:"
-echo "         ./real_recordings/   (WAV files, 16 kHz, ~300 clips)"
+echo "         ./real_rec_raw/   (WAV files, 16 kHz, ~300 clips)"
 echo "       From your local machine:"
-echo "         scp -r real_recordings/ root@<SERVER_IP>:$(pwd)/real_recordings"
+echo "         scp -r real_rec_raw/ root@<SERVER_IP>:$(pwd)/real_rec_raw"
 echo ""
 echo "    2. Start training:"
 echo "         source .venv/bin/activate"

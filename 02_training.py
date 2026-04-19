@@ -16,7 +16,7 @@ Pipeline (each step skipped if already completed):
 Usage:
   python 02_training.py <wake-word-phrase> [options]
 
-  --rec-dir      DIR  recordings folder        (default: ./real_recordings)
+  --rec-dir      DIR  recordings folder        (default: ./real_rec_raw)
   --steps        N    training steps            (default: 100000)
   --penalty      N    false activation penalty  (default: 300)
   --aug-rounds   N    augmentation rounds       (default: 150)
@@ -47,7 +47,7 @@ STEPS_ORDER = ["split", "generate", "augment", "train", "convert"]
 
 parser = argparse.ArgumentParser()
 parser.add_argument("wake_word", help="Wake word phrase (e.g. 'hey murph')")
-parser.add_argument("--rec-dir",    type=Path,  default=Path("./real_recordings"))
+parser.add_argument("--rec-dir",    type=Path,  default=Path("./real_rec_prepared"))
 parser.add_argument("--steps",      type=int,   default=100000)
 parser.add_argument("--penalty",    type=int,   default=300)
 parser.add_argument("--aug-rounds", type=int,   default=150)

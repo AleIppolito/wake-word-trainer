@@ -18,11 +18,12 @@ Train a custom wake word model using real voice recordings and the [openWakeWord
 ## Pipeline
 
 ```
-[any machine]                     [Linux VM]
-record.py  ──────── scp ────────► real_recordings/
-                                  │
-                                  ├─ bash setup.sh          (one-time)
-                                  └─ python 02_training.py  (train + export)
+[local machine]                           [Linux VM]
+record.py  → real_rec_raw/
+prepare.py → real_rec_prepared/ ─── scp ──► real_rec_prepared/
+                                             │
+                                             ├─ bash setup.sh          (one-time)
+                                             └─ python 02_training.py
 ```
 
 ---
@@ -67,16 +68,18 @@ Validate existing clips without recording:
 python local/record.py --validate
 ```
 
-Optionally center speech and trim silence before transferring (backs up originals first):
+Run prepare to normalize, trim, center, and quality-check before transferring:
 
 ```bash
 python local/prepare.py
 ```
 
-Transfer recordings to the VM:
+Output goes to `real_rec_prepared/`. Raw files in `real_rec_raw/` are never modified. Re-record any clips flagged as BAD.
+
+Transfer prepared recordings to the VM:
 
 ```bash
-scp -r real_recordings/ root@<SERVER_IP>:/path/to/wake-word-trainer/real_recordings
+scp -r real_rec_prepared/ root@<SERVER_IP>:/path/to/wake-word-trainer/real_rec_prepared
 ```
 
 ---
@@ -150,7 +153,7 @@ python eval.py my_custom_model/hey_murph.onnx
 
 | Flag | Default | Description |
 |---|---|---|
-| `--rec-dir` | `./real_recordings` | Recordings for recall eval |
+| `--rec-dir` | `./real_rec_raw` | Recordings for recall eval |
 | `--fp-dir` | `./audioset_16k` | Background clips for FP eval |
 | `--threshold` | 0.3 | Score threshold |
 | `--fp-samples` | 500 | Background clips to sample |

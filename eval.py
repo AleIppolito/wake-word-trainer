@@ -5,7 +5,7 @@ Evaluate a trained wake word model: recall on real recordings + FP/hour on backg
 Usage:
     python eval.py <wake_model.onnx> [options]
 
-    --rec-dir    DIR   recordings dir  (default: ./real_recordings)
+    --rec-dir    DIR   recordings dir  (default: ./real_rec_raw)
     --fp-dir     DIR   background dir  (default: ./audioset_16k)
     --threshold  F     score threshold (default: 0.3)
     --fp-samples N     audioset clips to sample for FP eval (default: 500)
@@ -35,7 +35,7 @@ EMB_DIM       = 96
 
 parser = argparse.ArgumentParser()
 parser.add_argument("wake_model", type=Path)
-parser.add_argument("--rec-dir",    type=Path, default=Path("./real_recordings"))
+parser.add_argument("--rec-dir",    type=Path, default=Path("./real_rec_prepared"))
 parser.add_argument("--fp-dir",     type=Path, default=Path("./audioset_16k"))
 parser.add_argument("--threshold",  type=float, default=0.3)
 parser.add_argument("--fp-samples", type=int,   default=500)
