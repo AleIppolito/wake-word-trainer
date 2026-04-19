@@ -174,7 +174,7 @@ if not os.path.exists("./librispeech_16k"):
             f"./librispeech_16k/ls_{saved:04d}.wav", 16000,
             (data * 32767).astype(np.int16),
         )
-            saved += 1
+        saved += 1
     log.info(f"librispeech: {saved} clips saved")
     print(f"  {saved} clips saved to ./librispeech_16k/")
 else:
