@@ -319,7 +319,13 @@ def generate_italian_negatives(dest_dir: str, n_clips: int, phrase: str) -> bool
 
             for wav in sorted(Path(tmpdir).glob("*.wav")):
                 dst = os.path.join(dest_dir, f"neg_{total:04d}.wav")
-                shutil.move(str(wav), dst)
+                _data, _sr = scipy.io.wavfile.read(str(wav))
+                if _sr != 16000:
+                    from math import gcd as _gcd
+                    from scipy.signal import resample_poly as _rp
+                    _g = _gcd(16000, _sr)
+                    _data = _rp(_data.astype(np.float32), 16000 // _g, _sr // _g)
+                scipy.io.wavfile.write(dst, 16000, _data.astype(np.int16))
                 total += 1
 
     print(f"  {total} Italian TTS negatives -> {dest_dir}")
