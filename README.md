@@ -33,15 +33,38 @@ record.py  ──────── scp ────────► real_recordi
 
 ```bash
 pip install sounddevice soundfile numpy
-python record.py
+python record.py --mode close --room cucina
 ```
 
-Press **Enter** to record a 2-second clip, `q` to quit. Aim for **300+ clips**.
+Press **Enter** to record a 2-second clip, `q` to quit.
 
-Tips:
-- Vary distance: 20 cm / 50 cm / 1 m
-- Vary pitch, speed, volume
-- Record in different rooms
+Each clip is validated immediately after recording (RMS, onset/offset silence, clipping). Bad clips are rejected on the spot and not saved.
+
+Clips are saved as `recording_NNNN_ROOM_MODE.wav`. A variety matrix tracks counts per room×distance combination and warns when a cell hits its per-cell cap (`target // (n_rooms × n_modes)`).
+
+```
+  Variety matrix  (per-cell target: 55)
+  ──────────────────────────────────────
+               close   mid    far
+  cucina        48     41     38  ◄
+  sala           3      0      0
+  camera         0      0      0
+  ──────────────────────────────────────
+  Total: 130 / 500
+```
+
+Run sessions across different rooms and distances to fill the matrix evenly:
+
+```bash
+python record.py --mode far --room sala
+python record.py --mode mid --room camera
+```
+
+Validate existing clips without recording:
+
+```bash
+python record.py --validate
+```
 
 Transfer recordings to the VM:
 
@@ -133,14 +156,6 @@ python eval.py my_custom_model/hey_murph.onnx
 | FP/hour | < 0.5 | < 1.0 |
 
 ---
-
-### 5. Validate recordings (optional)
-
-```bash
-python validate_recordings.py [recordings_dir]
-```
-
-Flags bad clips by duration, RMS, onset/offset silence, and clipping.
 
 ---
 
