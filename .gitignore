@@ -1,6 +1,7 @@
 # ── Venv ──────────────────────────────────────────────────────────────────────
 venv/
 .venv/
+local/.venv/
 
 # ── Datasets and features (downloaded by 00_download.py) ──────────────────────
 *.npy
