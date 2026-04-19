@@ -4,6 +4,7 @@ STEP 1 - Apply patches to installed libraries.
 Run ONCE after: python 00_download.py
 
 Actions:
+  1. torch:      reinstall with matching cu version if driver < 575 (CUDA 13.0)
   2. acoustics:   sph_harm renamed in scipy >= 1.15 -> sph_harm_y
   3. piper:       torch.load weights_only=False (torch >= 2.6)  [no-op if piper-sample-generator absent]
   4. torchaudio:  load() librosa fallback when torchcodec absent (removed in 2.9+)
@@ -45,6 +46,46 @@ def find_site_packages():
 sp = find_site_packages()
 log.info(f"site-packages: {sp}")
 print(f"site-packages: {sp}")
+
+
+# ── 1. CUDA driver / torch version alignment ──────────────────────────────────
+# torch+cu130 requires driver >= 525 (CUDA 13.0). Older drivers need cu124.
+print("\n=== Fix 1: CUDA driver / torch version alignment ===")
+_cuda_suffix = None
+try:
+    import re as _re
+    _smi = subprocess.run(
+        "nvidia-smi --query-gpu=driver_version --format=csv,noheader",
+        shell=True, capture_output=True, text=True,
+    )
+    _driver = _smi.stdout.strip().split("\n")[0].strip()
+    _major = int(_re.match(r"(\d+)", _driver).group(1))
+    # driver >= 525 → CUDA 12.0+; >= 550 → CUDA 12.4+; >= 575 → CUDA 13.0
+    if _major >= 575:
+        print(f"  driver {_driver} — torch+cu130 compatible, no reinstall needed")
+        log.info(f"cuda_fix: driver {_driver} >= 575, skip")
+    elif _major >= 550:
+        _cuda_suffix = "cu124"
+    elif _major >= 525:
+        _cuda_suffix = "cu121"
+    else:
+        print(f"  [WARN] driver {_driver} < 525 — CUDA GPU unavailable, CPU-only training")
+        log.warning(f"cuda_fix: driver {_driver} < 525, CPU-only")
+
+    if _cuda_suffix:
+        print(f"  driver {_driver} → reinstalling torch with {_cuda_suffix}")
+        log.info(f"cuda_fix: driver {_driver} → reinstall torch+{_cuda_suffix}")
+        _idx = f"https://download.pytorch.org/whl/{_cuda_suffix}"
+        run(
+            f"{sys.executable} -m pip install -q --force-reinstall "
+            f"torch torchaudio torchvision "
+            f"--index-url {_idx}"
+        )
+        print(f"  torch reinstalled with {_cuda_suffix}")
+        log.info(f"cuda_fix: reinstall done")
+except Exception as _e:
+    print(f"  [SKIP] could not detect CUDA driver: {_e}")
+    log.info(f"cuda_fix: skipped ({_e})")
 
 
 def _patch(label: str, applied: bool, skipped: bool = False, missing: bool = False):
