@@ -59,17 +59,23 @@ for fname in ["embedding_model.onnx", "embedding_model.tflite",
     else:
         print(f"  {fname} already present, skipping.")
 
-# ── Italian Piper TTS voice ───────────────────────────────────────────────────
-print("\n=== Download Italian Piper voice (it_IT-paola-medium) ===")
+# ── Italian Piper TTS voices ──────────────────────────────────────────────────
+print("\n=== Download Italian Piper voices (paola + riccardo) ===")
 voices_dir = "./models"
 os.makedirs(voices_dir, exist_ok=True)
-it_base = "https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/paola/medium"
-for fname in ["it_IT-paola-medium.onnx", "it_IT-paola-medium.onnx.json"]:
-    out = f"{voices_dir}/{fname}"
-    if not os.path.exists(out):
-        run(f"wget '{it_base}/{fname}' -O {out}")
-    else:
-        print(f"  {fname} already present, skipping.")
+_piper_voices = [
+    ("https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/paola/medium",
+     ["it_IT-paola-medium.onnx", "it_IT-paola-medium.onnx.json"]),
+    ("https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/riccardo/x_low",
+     ["it_IT-riccardo-x_low.onnx", "it_IT-riccardo-x_low.onnx.json"]),
+]
+for base, fnames in _piper_voices:
+    for fname in fnames:
+        out = f"{voices_dir}/{fname}"
+        if not os.path.exists(out):
+            run(f"wget '{base}/{fname}' -O {out}")
+        else:
+            print(f"  {fname} already present, skipping.")
 
 # ── datasets ──────────────────────────────────────────────────────────────────
 import io
