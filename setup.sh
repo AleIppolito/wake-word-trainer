@@ -41,11 +41,35 @@ fi
 source "$VENV_DIR/bin/activate"
 echo "=== Venv activated: $(which python) ==="
 
-# ── 3. pip install ────────────────────────────────────────────────────────────
+# Inject CUDA 12 lib path into venv activate so ORT finds libcublasLt.so.12
+CUDA12_LIB="/usr/local/cuda-12.9/lib64"
+if [ -d "$CUDA12_LIB" ] && ! grep -q "cuda-12.9" "$VENV_DIR/bin/activate"; then
+    echo "export LD_LIBRARY_PATH=$CUDA12_LIB:\$LD_LIBRARY_PATH" >> "$VENV_DIR/bin/activate"
+    echo "=== Injected $CUDA12_LIB into venv LD_LIBRARY_PATH ==="
+    source "$VENV_DIR/bin/activate"
+fi
+
+# ── 3. System deps (cuBLAS for onnxruntime-gpu CUDA provider) ────────────────
+echo ""
+echo "=== System deps: libcublas-12-9 ==="
+if dpkg -l libcublas-12-9 &>/dev/null; then
+    echo "    already installed"
+else
+    apt-get install -y libcublas-12-9 || echo "[WARN] apt install failed — CUDA provider may fall back to CPU"
+fi
+
+# ── 4. pip install ────────────────────────────────────────────────────────────
 echo ""
 echo "=== pip install -r requirements.txt ==="
 pip install --upgrade pip -q
 pip install -r requirements.txt
+
+# Reinstall onnxruntime-gpu from CUDA-12 feed (bundles cuDNN, needed for GPU inference)
+echo ""
+echo "=== onnxruntime-gpu: reinstall from CUDA-12 feed ==="
+pip install onnxruntime-gpu \
+    --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/ \
+    --force-reinstall --quiet
 
 # ── 4. Clone repos + download datasets ───────────────────────────────────────
 echo ""
