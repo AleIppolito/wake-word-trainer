@@ -9,6 +9,8 @@ audioset_16k/
 fma/
 mit_rirs/
 MIT_environmental_impulse_responses/
+librispeech_16k/
+models/
 
 # ── Repos cloned by scripts ───────────────────────────────────────────────────
 openwakeword/
@@ -18,18 +20,21 @@ piper-sample-generator/
 my_custom_model/
 
 # ── Generated training config (auto-written by 02_training.py) ────────────────
-my_model.yaml
+*.yaml
 
 # ── Voice recordings ──────────────────────────────────────────────────────────
 real_recordings/
+real_recordings_backup/
 
-# ── Logs and temp files ───────────────────────────────────────────────────────
-output.log
-*.log
+# ── Logs (auto-created, for debugging) ───────────────────────────────────────
+log/
+
+# ── Temp / system ─────────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
 .ipynb_checkpoints/
+.DS_Store
 
 # ── Vast.ai ───────────────────────────────────────────────────────────────────
 .vast_api_key

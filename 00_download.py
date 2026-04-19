@@ -19,13 +19,19 @@ import os
 import sys
 import subprocess
 import locale
+from _log import setup_log
+
+log = setup_log("download")
+log.info("=== 00_download.py start ===")
 
 
 def run(cmd, ignore_error=False):
     print(f"\n$ {cmd}")
+    log.debug(f"run: {cmd}")
     result = subprocess.run(cmd, shell=True)
     if result.returncode != 0 and not ignore_error:
         print(f"[WARN] exit code {result.returncode}")
+        log.warning(f"exit code {result.returncode}: {cmd}")
 
 
 def fix_locale():
@@ -39,10 +45,11 @@ fix_locale()
 # ── openwakeword ──────────────────────────────────────────────────────────────
 print("\n=== Setup openwakeword ===")
 if not os.path.exists("./openwakeword"):
+    log.info("cloning openwakeword")
     run("git clone https://github.com/dscripka/openwakeword")
-    # --no-deps: all dependencies are already in requirements.txt
     run("pip install -e ./openwakeword --no-deps")
 else:
+    log.info("openwakeword: already present")
     print("openwakeword already present, skipping.")
 
 # ── openWakeWord models ───────────────────────────────────────────────────────
@@ -167,9 +174,12 @@ if not os.path.exists("./librispeech_16k"):
             f"./librispeech_16k/ls_{saved:04d}.wav", 16000,
             (data * 32767).astype(np.int16),
         )
-        saved += 1
+            saved += 1
+    log.info(f"librispeech: {saved} clips saved")
     print(f"  {saved} clips saved to ./librispeech_16k/")
 else:
+    log.info("librispeech: already present")
     print("LibriSpeech already present, skipping.")
 
+log.info("=== 00_download.py complete ===")
 print("\n=== Download complete ===")

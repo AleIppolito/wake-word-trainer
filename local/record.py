@@ -36,6 +36,10 @@ from pathlib import Path
 
 import numpy as np
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from _log import setup_log
+log = setup_log("record")
+
 try:
     import sounddevice as sd
     import soundfile as sf
@@ -195,6 +199,7 @@ def record_one(args, matrix, count, per_cell, session_good, session_bad):
 
     if issues:
         session_bad += 1
+        log.debug(f"rejected: {' | '.join(issues)}")
         print(f"  ✗  REJECTED — {' | '.join(issues)}")
         return count, session_good, session_bad
 
@@ -203,6 +208,7 @@ def record_one(args, matrix, count, per_cell, session_good, session_bad):
     matrix[args.room][args.mode] += 1
     session_good += 1
     count += 1
+    log.debug(f"saved: {filename.name}")
     print(f"  ✓  {filename.name}")
 
     if matrix[args.room][args.mode] == per_cell:
@@ -264,6 +270,9 @@ def run_record(args):
     matrix[args.room][args.mode]
 
     hints = {"close": "(~20 cm)", "mid": "(~50 cm)", "far": "(~1 m)", "other": ""}
+    log.info(f"session start  room={args.room} mode={args.mode} "
+             f"target={args.target} max_per_cell={per_cell if 'per_cell' in dir() else 'tbd'} "
+             f"auto={args.auto}")
     print("=" * 52)
     print("  Wake Word Recorder")
     print("=" * 52)
@@ -313,6 +322,8 @@ def run_record(args):
     except KeyboardInterrupt:
         print()
 
+    log.info(f"session end  room={args.room} mode={args.mode}  "
+             f"saved={session_good}  rejected={session_bad}")
     print()
     print(f"  Session: +{session_good} saved, {session_bad} rejected.")
     print_matrix(matrix, args.target, args.room, args.mode, per_cell=per_cell)

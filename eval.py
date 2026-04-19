@@ -23,6 +23,9 @@ import numpy as np
 import onnxruntime as ort
 import soundfile as sf
 import librosa
+from _log import setup_log
+
+log = setup_log("eval")
 
 CHUNK_SAMPLES = 1280
 MEL_FEATURES  = 32
@@ -46,9 +49,11 @@ emb_path = models_dir / "embedding_model.onnx"
 
 for p in [mel_path, emb_path, args.wake_model]:
     if not p.exists():
+        log.error(f"model not found: {p}")
         print(f"[ERROR] Not found: {p}")
         sys.exit(1)
 
+log.info(f"eval start  wake={args.wake_model}  threshold={args.threshold}  rec_dir={args.rec_dir}")
 print(f"mel : {mel_path}")
 print(f"emb : {emb_path}")
 print(f"wake: {args.wake_model}")
@@ -157,6 +162,8 @@ print(f"  Max        : {np.max(peaks):.4f}")
 print()
 for label in sorted(buckets):
     print(f"    {label}  {'█'*buckets[label]} ({buckets[label]})")
+log.info(f"recall  detected={n_detected}/{len(peaks)}  ({100*n_detected/max(1,len(peaks)):.1f}%)  "
+         f"avg={np.mean(peaks):.4f}  median={np.median(peaks):.4f}  max={np.max(peaks):.4f}")
 print(f"{'='*52}\n")
 
 
@@ -195,4 +202,6 @@ print(f"  FP / hour      : {fp_per_hour:.2f}")
 if fp_errors:
     print(f"  Errors         : {fp_errors}")
 print(f"{'='*52}")
+log.info(f"fp_per_hour={fp_per_hour:.2f}  activations={total_activations}  "
+         f"hours={total_hours:.3f}  errors={fp_errors}")
 print(f"\n  Target: FP/hour < 0.5 (good)  < 1.0 (acceptable)")

@@ -39,6 +39,9 @@ from pathlib import Path
 import numpy as np
 import scipy.io.wavfile
 import yaml
+from _log import setup_log
+
+log = setup_log("training")
 
 STEPS_ORDER = ["split", "generate", "augment", "train", "convert"]
 
@@ -80,9 +83,11 @@ model_dir.mkdir(parents=True, exist_ok=True)
 
 def run(cmd, ignore_error=False):
     print(f"\n$ {cmd}")
+    log.debug(f"run: {cmd}")
     result = subprocess.run(cmd, shell=True)
     if result.returncode != 0 and not ignore_error:
         print(f"[WARN] exit code {result.returncode}")
+        log.warning(f"exit code {result.returncode}: {cmd}")
     return result.returncode == 0
 
 
@@ -222,6 +227,10 @@ config_path = Path(f"{model_name}.yaml")
 with open(config_path, "w") as f:
     yaml.dump(config, f)
 
+log.info(f"wake_word={TARGET_WORD} steps={args.steps} penalty={args.penalty} "
+         f"aug_rounds={args.aug_rounds} train={train_count} test={test_count} "
+         f"neg_audioset={args.neg_train}/{args.neg_test} "
+         f"neg_speech={args.neg_speech_train}/{args.neg_speech_test}")
 print(f"\nWake word    : {TARGET_WORD}")
 print(f"Train clips  : {train_count} x{args.aug_rounds} aug = {train_count * args.aug_rounds} effective")
 print(f"Test clips   : {test_count}")
@@ -265,24 +274,32 @@ else:
 
 # ── Augment ───────────────────────────────────────────────────────────────────
 if step_done("augment"):
+    log.info("step augment: skipped (already done)")
     print("\n[SKIP] augment")
 else:
+    log.info("step augment: starting")
     print("\n=== [augment] ===")
     if run(f"{sys.executable} openwakeword/openwakeword/train.py --training_config {config_path} --augment_clips"):
         mark_done("augment")
+        log.info("step augment: done")
     else:
+        log.error("step augment: failed")
         print("[ERROR] augment failed.")
         sys.exit(1)
 
 
 # ── Train ─────────────────────────────────────────────────────────────────────
 if step_done("train"):
+    log.info("step train: skipped (already done)")
     print("\n[SKIP] train")
 else:
+    log.info("step train: starting")
     print("\n=== [train] ===")
     if run(f"{sys.executable} openwakeword/openwakeword/train.py --training_config {config_path} --train_model"):
         mark_done("train")
+        log.info("step train: done")
     else:
+        log.error("step train: failed")
         print("[ERROR] train failed.")
         sys.exit(1)
 

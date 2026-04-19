@@ -33,7 +33,7 @@ record.py  ──────── scp ────────► real_recordi
 
 ```bash
 pip install sounddevice soundfile numpy
-python record.py --mode close --room cucina
+python local/record.py --mode close --room cucina
 ```
 
 Press **Enter** to record a 2-second clip, `q` to quit.
@@ -56,14 +56,14 @@ Clips are saved as `recording_NNNN_ROOM_MODE.wav`. A variety matrix tracks count
 Run sessions across different rooms and distances to fill the matrix evenly:
 
 ```bash
-python record.py --mode far --room sala
-python record.py --mode mid --room camera
+python local/record.py --mode far --room sala
+python local/record.py --mode mid --room camera
 ```
 
 Validate existing clips without recording:
 
 ```bash
-python record.py --validate
+python local/record.py --validate
 ```
 
 Transfer recordings to the VM:
@@ -156,6 +156,36 @@ python eval.py my_custom_model/hey_murph.onnx
 | FP/hour | < 0.5 | < 1.0 |
 
 ---
+
+---
+
+## Project structure
+
+```
+wake-word-trainer/
+├── setup.sh               One-command VM setup
+├── 00_download.py         Clone openwakeword + download datasets
+├── 01_fix_n_patch.py      Post-install patches for library incompatibilities
+├── 02_training.py         Main training pipeline (split → augment → train → convert)
+├── eval.py                Recall + FP/hour evaluation
+├── requirements.txt       Pinned deps (Python 3.12 + CUDA 13.0)
+├── _log.py                Shared logging helper (writes to log/)
+└── local/
+    └── record.py          Voice recorder — runs on local machine, not the VM
+```
+
+`local/` contains tools that run on your local machine. Everything else runs on the VM.
+
+Logs are written to `log/` (gitignored, auto-created):
+
+| File | Written by |
+|---|---|
+| `log/setup.log` | `setup.sh` |
+| `log/download.log` | `00_download.py` |
+| `log/patch.log` | `01_fix_n_patch.py` |
+| `log/training.log` | `02_training.py` |
+| `log/eval.log` | `eval.py` |
+| `log/record.log` | `local/record.py` |
 
 ---
 

@@ -19,13 +19,19 @@ import subprocess
 import sys
 import site
 from pathlib import Path
+from _log import setup_log
+
+log = setup_log("patch")
+log.info("=== 01_fix_n_patch.py start ===")
 
 
 def run(cmd, ignore_error=False):
     print(f"\n$ {cmd}")
+    log.debug(f"run: {cmd}")
     result = subprocess.run(cmd, shell=True)
     if result.returncode != 0 and not ignore_error:
         print(f"[WARN] exit code {result.returncode}")
+        log.warning(f"exit code {result.returncode}: {cmd}")
 
 
 def find_site_packages():
@@ -37,7 +43,19 @@ def find_site_packages():
 
 
 sp = find_site_packages()
+log.info(f"site-packages: {sp}")
 print(f"site-packages: {sp}")
+
+
+def _patch(label: str, applied: bool, skipped: bool = False, missing: bool = False):
+    if missing:
+        log.info(f"patch [{label}]: file not found, skipped")
+    elif skipped:
+        log.info(f"patch [{label}]: already applied")
+    elif applied:
+        log.info(f"patch [{label}]: applied")
+    else:
+        log.warning(f"patch [{label}]: pattern not found — may need update")
 
 # ── 2. acoustics ──────────────────────────────────────────────────────────────
 # ImportError: cannot import name 'sph_harm' from 'scipy.special'
@@ -47,6 +65,7 @@ target = sp / "acoustics" / "directivity.py"
 if target.exists():
     if "sph_harm_y" in target.read_text():
         print("[SKIP] already patched")
+        _patch("acoustics", applied=False, skipped=True)
     else:
         run(
             f"sed -i 's/from scipy.special import sph_harm/"
@@ -57,8 +76,10 @@ if target.exists():
             capture_output=True, text=True,
         )
         print(result.stdout.strip() or result.stderr.strip())
+        _patch("acoustics", applied=True)
 else:
     print(f"[SKIP] {target} not found")
+    _patch("acoustics", applied=False, missing=True)
 
 # ── 5. torchaudio.info() missing in 2.9+ ─────────────────────────────────────
 # torchaudio 2.9+ removed torchaudio.info() — torch_audiomentations calls it
@@ -328,5 +349,6 @@ if train_py.exists():
 else:
     print(f"  [SKIP] {train_py} not found")
 
+log.info("=== 01_fix_n_patch.py complete ===")
 print("\n=== Patches applied ===")
 print("Next: python 02_training.py")

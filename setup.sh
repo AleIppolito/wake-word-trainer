@@ -20,6 +20,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -e
 
+mkdir -p log
+exec > >(tee -a log/setup.log) 2>&1
+
 VENV_DIR="./.venv"
 PYTHON="python3.12"
 
