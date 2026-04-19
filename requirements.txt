@@ -42,6 +42,9 @@ mutagen
 pandas
 requests
 
+# ── TensorFlow (needed by onnx2tf for TFLite conversion) ─────────────────────
+tensorflow-cpu
+
 # ── ONNX / TFLite ─────────────────────────────────────────────────────────────
 ai-edge-litert
 onnx
