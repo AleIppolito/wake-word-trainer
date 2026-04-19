@@ -49,13 +49,12 @@ FALSE_ACTIVATION_PENALTY = 100
 # Italian Piper TTS voices for synthetic positive generation.
 # Both downloaded by 00_download.py to ./models/
 PIPER_MODELS = [
-    "./models/it_IT-paola-medium.onnx",    # female
-    "./models/it_IT-riccardo-x_low.onnx",  # male
+    "./models/it_IT-riccardo-x_low.onnx",  # male Italian — closest to user voice
 ]
 
 # Number of synthetic TTS positive clips to generate per voice.
-N_TTS_POSITIVE_TRAIN     = 100   # per voice → 200 total
-N_TTS_POSITIVE_TEST      = 25    # per voice → 50 total
+N_TTS_POSITIVE_TRAIN     = 200
+N_TTS_POSITIVE_TEST      = 50
 # ─────────────────────────────────────────────
 
 STEPS_ORDER = ["split", "generate", "augment", "train", "convert"]
@@ -350,6 +349,20 @@ else:
     else:
         print("[ERROR] generate step failed. Check piper installation and model paths.")
         sys.exit(1)
+
+    # Populate neg dirs with audioset clips (train.py requires non-empty negative dirs)
+    print("\n=== [generate] Populating negative dirs from audioset ===")
+    audioset_wavs = sorted(Path("./audioset_16k").glob("*.wav"))
+    if not audioset_wavs:
+        print("[ERROR] audioset_16k/ empty — run 00_download.py first.")
+        sys.exit(1)
+    random.shuffle(audioset_wavs)
+    for i, src in enumerate(audioset_wavs[:200]):
+        shutil.copy(src, os.path.join(neg_train, f"neg_train_{i:04d}.wav"))
+    for i, src in enumerate(audioset_wavs[200:250]):
+        shutil.copy(src, os.path.join(neg_test, f"neg_test_{i:04d}.wav"))
+    print(f"  200 audioset clips -> {neg_train}")
+    print(f"  50  audioset clips -> {neg_test}")
 
 
 # ── 7. Augment ────────────────────────────────────────────────────────────────
