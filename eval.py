@@ -67,6 +67,11 @@ def run_pipeline(wav_path, count_mode=False):
     audio = np.clip(data.astype(np.float32) * 32767.0, -32768, 32767)
     duration_sec = len(audio) / 16000
 
+    # Pad to guarantee at least MEL_WINDOW + EMB_WINDOW chunks worth of audio
+    min_samples = CHUNK_SAMPLES * (MEL_WINDOW // 4 + EMB_WINDOW + 4)
+    if len(audio) < min_samples:
+        audio = np.pad(audio, (min_samples - len(audio), 0))  # prepend silence
+
     mel_buf, emb_buf, scores = [], [], []
     step = CHUNK_SAMPLES // 2
     n_chunks = max(1, (len(audio) - CHUNK_SAMPLES) // step + 1)
