@@ -51,11 +51,11 @@ parser.add_argument("--rec-dir",    type=Path,  default=Path("./real_rec_prepare
 parser.add_argument("--steps",      type=int,   default=200000)
 parser.add_argument("--penalty",    type=int,   default=500)
 parser.add_argument("--aug-rounds", type=int,   default=150)
-parser.add_argument("--neg-train",         type=int, default=200)
-parser.add_argument("--neg-test",          type=int, default=50)
-parser.add_argument("--neg-speech-train",  type=int, default=200,
+parser.add_argument("--neg-train",         type=int, default=2000)
+parser.add_argument("--neg-test",          type=int, default=200)
+parser.add_argument("--neg-speech-train",  type=int, default=2000,
                     help="LibriSpeech clips added to negative train (0 to skip)")
-parser.add_argument("--neg-speech-test",   type=int, default=50,
+parser.add_argument("--neg-speech-test",   type=int, default=200,
                     help="LibriSpeech clips added to negative test (0 to skip)")
 group = parser.add_mutually_exclusive_group()
 group.add_argument("--force", action="store_true")

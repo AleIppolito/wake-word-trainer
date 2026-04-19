@@ -125,10 +125,10 @@ python 02_training.py "hey murph"
 | `--steps` | 200000 | Training steps |
 | `--penalty` | 500 | False activation weight penalty |
 | `--aug-rounds` | 150 | Augmentation rounds per clip |
-| `--neg-train` | 200 | Audioset clips for negative train |
-| `--neg-test` | 50 | Audioset clips for negative test |
-| `--neg-speech-train` | 200 | LibriSpeech clips for negative train |
-| `--neg-speech-test` | 50 | LibriSpeech clips for negative test |
+| `--neg-train` | 2000 | Audioset clips for negative train |
+| `--neg-test` | 200 | Audioset clips for negative test |
+| `--neg-speech-train` | 2000 | LibriSpeech clips for negative train |
+| `--neg-speech-test` | 200 | LibriSpeech clips for negative test |
 | `--force` | — | Re-run all steps from scratch |
 | `--from STEP` | — | Re-run from step: `split\|generate\|augment\|train\|convert` |
 
