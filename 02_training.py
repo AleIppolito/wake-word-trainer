@@ -152,9 +152,11 @@ for step in STEPS_ORDER:
         # augmented clips live alongside originals; wipe and re-split from source
         _clear_dir(pos_train)
         _clear_dir(pos_test)
-        # also clear negative dirs so generate re-runs cleanly if needed
+        # clear negative dirs and force generate to re-run so they get refilled
         _clear_dir(neg_train)
         _clear_dir(neg_test)
+        if sentinels["generate"].exists():
+            sentinels["generate"].unlink()
         # clear the split sentinel too so files are re-copied
         if sentinels["split"].exists():
             sentinels["split"].unlink()
