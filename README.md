@@ -67,6 +67,12 @@ Validate existing clips without recording:
 python local/record.py --validate
 ```
 
+Optionally center speech and trim silence before transferring (backs up originals first):
+
+```bash
+python local/prepare.py
+```
+
 Transfer recordings to the VM:
 
 ```bash
@@ -174,6 +180,7 @@ wake-word-trainer/
 └── local/
     ├── setup.sh           Creates local venv + installs deps
     ├── record.py          Voice recorder — runs on local machine, not the VM
+    ├── prepare.py         Center speech + trim silence before sending to VM
     └── requirements.txt   Local deps only (sounddevice, soundfile, numpy)
 ```
 

@@ -77,6 +77,8 @@ def beep_stop():  _beep(440, 0.08)  # low  — window closed
 
 # ── Quality check ─────────────────────────────────────────────────────────────
 def validate_clip(data: np.ndarray, sr: int) -> list[str]:
+    """Block only genuinely bad clips: silent, too quiet, or clipping.
+    Onset/offset silence is normal in a fixed 2s window — handle in prepare.py."""
     issues = []
     if data.ndim > 1:
         data = data.mean(axis=1)
@@ -93,23 +95,11 @@ def validate_clip(data: np.ndarray, sr: int) -> list[str]:
 
     frame_samples = int(FRAME_LEN * sr)
     n_frames = len(data) // frame_samples
-    if n_frames == 0:
-        issues.append("too short")
-        return issues
-
-    frames   = data[:n_frames * frame_samples].reshape(n_frames, frame_samples)
-    energies = np.sqrt((frames ** 2).mean(axis=1))
-    speech   = np.where(energies > ENERGY_THRESH)[0]
-
-    if len(speech) == 0:
-        issues.append("no speech detected")
-    else:
-        onset_s  = speech[0]  * FRAME_LEN
-        offset_s = (n_frames - speech[-1] - 1) * FRAME_LEN
-        if onset_s > ONSET_MAX_S:
-            issues.append(f"late onset ({onset_s:.2f}s — speak sooner after beep)")
-        if offset_s > OFFSET_MAX_S:
-            issues.append(f"early cutoff ({offset_s:.2f}s — word may be cut off)")
+    if n_frames > 0:
+        frames   = data[:n_frames * frame_samples].reshape(n_frames, frame_samples)
+        energies = np.sqrt((frames ** 2).mean(axis=1))
+        if not np.any(energies > ENERGY_THRESH):
+            issues.append("no speech detected")
 
     return issues
 
