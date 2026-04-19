@@ -43,7 +43,6 @@ tf-keras
 
 # ── ONNX / TFLite ─────────────────────────────────────────────────────────────
 ai-edge-litert
-nvidia-pyindex
 onnx-graphsurgeon
 onnx
 onnx2tf
