@@ -130,11 +130,13 @@ def all_rooms_modes(matrix: dict, cur_room: str = None, cur_mode: str = None):
     return rooms, modes
 
 
-def print_matrix(matrix: dict, target: int, cur_room: str = None, cur_mode: str = None):
+def print_matrix(matrix: dict, target: int, cur_room: str = None, cur_mode: str = None,
+                 per_cell: int = None):
     rooms, modes = all_rooms_modes(matrix, cur_room, cur_mode)
-    n_cells  = max(1, len(rooms) * len(modes))
-    per_cell = max(1, target // n_cells)
-    total    = sum(matrix[r][m] for r in rooms for m in modes)
+    if per_cell is None:
+        n_cells  = max(1, len(rooms) * len(modes))
+        per_cell = max(1, target // n_cells)
+    total = sum(matrix[r][m] for r in rooms for m in modes)
 
     col_w = max(7, max((len(m) for m in modes), default=5) + 2)
     row_w = max(10, max((len(r) for r in rooms), default=6) + 2)
@@ -252,7 +254,7 @@ def run_validate(rec_dir: Path):
         print(f"  Untagged (legacy): {untagged}")
 
     if any(matrix[r][m] for r in rooms for m in modes):
-        print_matrix(matrix, target=500)
+        print_matrix(matrix, target=500, per_cell=500 // 9)
 
 
 # ── Recording mode ────────────────────────────────────────────────────────────
@@ -275,7 +277,8 @@ def run_record(args):
         print(f"  Enter = record    q + Enter = quit")
     print(f"\n  Tips: vary pitch, speed, energy across clips.")
 
-    per_cell = print_matrix(matrix, args.target, args.room, args.mode)
+    per_cell = args.max if args.max else args.target // 9
+    print_matrix(matrix, args.target, args.room, args.mode, per_cell=per_cell)
     print()
 
     count        = next_clip_number(args.rec_dir)
@@ -312,7 +315,7 @@ def run_record(args):
 
     print()
     print(f"  Session: +{session_good} saved, {session_bad} rejected.")
-    print_matrix(matrix, args.target, args.room, args.mode)
+    print_matrix(matrix, args.target, args.room, args.mode, per_cell=per_cell)
     print()
 
 
@@ -324,6 +327,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--mode",     choices=MODES)
 parser.add_argument("--room",     help="Room name (e.g. cucina, sala, camera)")
 parser.add_argument("--target",   type=int,   default=500)
+parser.add_argument("--max",      type=int,   default=None,
+                    help="Max clips per room×mode cell. Default: target // (3×3) = 55")
 parser.add_argument("--rec-dir",  type=Path,  default=Path("./real_recordings"))
 parser.add_argument("--auto",     action="store_true", help="Loop automatically")
 parser.add_argument("--pause",    type=float, default=2.0,
