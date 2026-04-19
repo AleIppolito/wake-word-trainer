@@ -2,16 +2,11 @@
 # Custom Wake Word - openWakeWord trainer
 # Python 3.12 + CUDA 13.0
 #
-# Install:
-#   python -m venv venv
-#   source venv/bin/activate
-#   pip install -r requirements.txt
-#   python 00_download.py       # clone repos + download datasets (~17 GB, once)
-#   python 01_fix_n_patch.py    # apply post-install patches
-#   python 02_training.py
+# Setup (one-time):
+#   bash setup.sh
 #
-# NOT included here (must be installed after git clone):
-#   - openwakeword   → pip install -e ./openwakeword --no-deps  (done by 00_download.py)
+# NOT included here (installed after git clone by 00_download.py):
+#   - openwakeword   → pip install -e ./openwakeword --no-deps
 # ─────────────────────────────────────────────────────────────────────────────
 
 --extra-index-url https://download.pytorch.org/whl/cu130
@@ -55,10 +50,6 @@ onnxscript
 onnxsim-prebuilt
 sne4onnx
 sng4onnx
-
-# ── TTS (Italian wake word generation) ───────────────────────────────────────
-piper-phonemize-cross
-piper-tts
 
 # ── openWakeWord deps ─────────────────────────────────────────────────────────
 pronouncing==0.3.0

@@ -1,25 +1,28 @@
 #!/usr/bin/env python3
-import sys
+"""
+Evaluate a trained wake word model: recall on real recordings + FP/hour on background audio.
+
+Usage:
+    python eval.py <wake_model.onnx> [options]
+
+    --rec-dir    DIR   recordings dir  (default: ./real_recordings)
+    --fp-dir     DIR   background dir  (default: ./audioset_16k)
+    --threshold  F     score threshold (default: 0.3)
+    --fp-samples N     audioset clips to sample for FP eval (default: 500)
+
+Model search path for mel/embedding models:
+    ./openwakeword/openwakeword/resources/models/
+"""
+
+import argparse
 import random
+import sys
+from pathlib import Path
+
 import numpy as np
+import onnxruntime as ort
 import soundfile as sf
 import librosa
-import onnxruntime as ort
-from pathlib import Path
-from collections import Counter
-
-# ─────────────────────────────────────────────
-# CONFIGURATION
-# ─────────────────────────────────────────────
-REC_DIR       = Path("/workspace/wake-word-trainer/real_recordings")
-FP_DIR        = Path("/workspace/wake-word-trainer/audioset_16k")
-MEL_PATH      = None   # auto-detected from /workspace if None
-EMB_PATH      = None
-WAKE_PATH     = Path("/workspace/wake-word-trainer/my_custom_model/hey_murph.onnx")
-THRESHOLD     = 0.3
-N_FP_SAMPLES  = 500    # audioset clips to sample for FP eval
-FP_COOLDOWN   = 25     # frames to ignore after a detection (matches EMB_WINDOW)
-# ─────────────────────────────────────────────
 
 CHUNK_SAMPLES = 1280
 MEL_FEATURES  = 32
@@ -27,23 +30,34 @@ MEL_WINDOW    = 76
 EMB_WINDOW    = 16
 EMB_DIM       = 96
 
-# ── Model loading ─────────────────────────────────────────────────────────────
-if MEL_PATH is None:
-    import subprocess
-    mel = subprocess.check_output(["find", "/workspace", "-name", "melspectrogram.onnx"]).decode().strip().split("\n")[0]
-    emb = subprocess.check_output(["find", "/workspace", "-name", "embedding_model.onnx"]).decode().strip().split("\n")[0]
-    MEL_PATH = Path(mel)
-    EMB_PATH = Path(emb)
+parser = argparse.ArgumentParser()
+parser.add_argument("wake_model", type=Path)
+parser.add_argument("--rec-dir",    type=Path, default=Path("./real_recordings"))
+parser.add_argument("--fp-dir",     type=Path, default=Path("./audioset_16k"))
+parser.add_argument("--threshold",  type=float, default=0.3)
+parser.add_argument("--fp-samples", type=int,   default=500)
+args = parser.parse_args()
 
-print(f"mel : {MEL_PATH}")
-print(f"emb : {EMB_PATH}")
-print(f"wake: {WAKE_PATH}")
+FP_COOLDOWN = EMB_WINDOW
+
+models_dir = Path("./openwakeword/openwakeword/resources/models")
+mel_path = models_dir / "melspectrogram.onnx"
+emb_path = models_dir / "embedding_model.onnx"
+
+for p in [mel_path, emb_path, args.wake_model]:
+    if not p.exists():
+        print(f"[ERROR] Not found: {p}")
+        sys.exit(1)
+
+print(f"mel : {mel_path}")
+print(f"emb : {emb_path}")
+print(f"wake: {args.wake_model}")
 print()
 
 _providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
-mel_sess  = ort.InferenceSession(str(MEL_PATH),  providers=_providers)
-emb_sess  = ort.InferenceSession(str(EMB_PATH),  providers=_providers)
-wake_sess = ort.InferenceSession(str(WAKE_PATH), providers=_providers)
+mel_sess  = ort.InferenceSession(str(mel_path),        providers=_providers)
+emb_sess  = ort.InferenceSession(str(emb_path),        providers=_providers)
+wake_sess = ort.InferenceSession(str(args.wake_model), providers=_providers)
 
 mel_in  = mel_sess.get_inputs()[0].name;  mel_out  = mel_sess.get_outputs()[0].name
 emb_in  = emb_sess.get_inputs()[0].name;  emb_out  = emb_sess.get_outputs()[0].name
@@ -51,14 +65,6 @@ wk_in   = wake_sess.get_inputs()[0].name; wk_out   = wake_sess.get_outputs()[0].
 
 
 def run_pipeline(wav_path, count_mode=False):
-    """
-    Run the full 3-stage inference pipeline on a WAV file.
-
-    count_mode=False (recall eval): returns max score across all chunks.
-    count_mode=True  (FP eval):     returns (n_activations, duration_seconds).
-      Activations are threshold crossings with FP_COOLDOWN frame suppression,
-      matching the real detection behaviour in murph.
-    """
     data, sr = sf.read(str(wav_path), always_2d=False)
     if sr != 16000:
         data = librosa.resample(data.astype(np.float32), orig_sr=sr, target_sr=16000)
@@ -67,10 +73,9 @@ def run_pipeline(wav_path, count_mode=False):
     audio = np.clip(data.astype(np.float32) * 32767.0, -32768, 32767)
     duration_sec = len(audio) / 16000
 
-    # Pad to guarantee at least MEL_WINDOW + EMB_WINDOW chunks worth of audio
     min_samples = CHUNK_SAMPLES * (MEL_WINDOW // 4 + EMB_WINDOW + 4)
     if len(audio) < min_samples:
-        audio = np.pad(audio, (min_samples - len(audio), 0))  # prepend silence
+        audio = np.pad(audio, (min_samples - len(audio), 0))
 
     mel_buf, emb_buf, scores = [], [], []
     step = CHUNK_SAMPLES // 2
@@ -104,7 +109,7 @@ def run_pipeline(wav_path, count_mode=False):
         if count_mode:
             if cooldown > 0:
                 cooldown -= 1
-            elif score >= THRESHOLD:
+            elif score >= args.threshold:
                 n_activations += 1
                 cooldown = FP_COOLDOWN
         else:
@@ -115,16 +120,19 @@ def run_pipeline(wav_path, count_mode=False):
     return max(scores) if scores else 0.0
 
 
-# ── 1. Recall eval on real recordings ────────────────────────────────────────
-wavs = sorted(REC_DIR.glob("*.wav"))
-print(f"{'─'*52}")
-print(f"  RECALL  —  {len(wavs)} recordings  (threshold={THRESHOLD})")
-print(f"{'─'*52}")
+# ── Recall ────────────────────────────────────────────────────────────────────
+wavs = sorted(args.rec_dir.glob("*.wav"))
+if not wavs:
+    print(f"[ERROR] No WAV files in {args.rec_dir}")
+    sys.exit(1)
 
-peaks, n_detected = [], 0
+from collections import Counter
 EDGES = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.01]
-buckets = Counter()
+print(f"{'─'*52}")
+print(f"  RECALL  —  {len(wavs)} recordings  (threshold={args.threshold})")
+print(f"{'─'*52}")
 
+peaks, n_detected, buckets = [], 0, Counter()
 for wav in wavs:
     try:
         peak = run_pipeline(wav)
@@ -132,13 +140,13 @@ for wav in wavs:
         print(f"  ERROR {wav.name}: {e}")
         continue
     peaks.append(peak)
-    if peak >= THRESHOLD:
+    if peak >= args.threshold:
         n_detected += 1
     for j in range(len(EDGES) - 1):
         if EDGES[j] <= peak < EDGES[j+1]:
             buckets[f"{EDGES[j]:.1f}-{EDGES[j+1]:.1f}"] += 1
             break
-    print(f"  {'✓' if peak >= THRESHOLD else '✗'} {wav.name}  peak={peak:.4f}")
+    print(f"  {'✓' if peak >= args.threshold else '✗'} {wav.name}  peak={peak:.4f}")
 
 print(f"\n{'='*52}")
 print(f"  Files      : {len(peaks)}")
@@ -152,16 +160,14 @@ for label in sorted(buckets):
 print(f"{'='*52}\n")
 
 
-# ── 2. False positive eval on background audio ───────────────────────────────
-fp_wavs = sorted(FP_DIR.glob("*.wav")) if FP_DIR.exists() else []
+# ── False positives ───────────────────────────────────────────────────────────
+fp_wavs = sorted(args.fp_dir.glob("*.wav")) if args.fp_dir.exists() else []
 if not fp_wavs:
-    print(f"[SKIP] FP eval — {FP_DIR} not found or empty")
+    print(f"[SKIP] FP eval — {args.fp_dir} not found or empty")
     sys.exit(0)
 
-sample = random.sample(fp_wavs, min(N_FP_SAMPLES, len(fp_wavs)))
-total_activations = 0
-total_seconds = 0.0
-fp_errors = 0
+sample = random.sample(fp_wavs, min(args.fp_samples, len(fp_wavs)))
+total_activations, total_seconds, fp_errors = 0, 0.0, 0
 
 print(f"{'─'*52}")
 print(f"  FALSE POSITIVES  —  {len(sample)} audioset clips sampled")
@@ -170,7 +176,7 @@ print(f"{'─'*52}")
 for wav in sample:
     try:
         n_act, dur = run_pipeline(wav, count_mode=True)
-    except Exception as e:
+    except Exception:
         fp_errors += 1
         continue
     total_activations += n_act
@@ -189,5 +195,4 @@ print(f"  FP / hour      : {fp_per_hour:.2f}")
 if fp_errors:
     print(f"  Errors         : {fp_errors}")
 print(f"{'='*52}")
-print()
-print(f"  Target: FP/hour < 0.5 (good)  < 1.0 (acceptable)")
+print(f"\n  Target: FP/hour < 0.5 (good)  < 1.0 (acceptable)")

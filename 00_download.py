@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-STEP 0 - Set up openwakeword, download datasets and Italian TTS voice.
+STEP 0 - Set up openwakeword and download training datasets.
 Run ONCE. Skips anything already downloaded.
 
 Prerequisites:
@@ -8,7 +8,6 @@ Prerequisites:
 
 Output:
   - ./openwakeword/                                     (training framework)
-  - ./models/                                           (Italian piper voice)
   - ./mit_rirs/                                         (Room Impulse Responses)
   - ./audioset_16k/                                     (background noise)
   - ./fma/                                              (background music)
@@ -58,24 +57,6 @@ for fname in ["embedding_model.onnx", "embedding_model.tflite",
         run(f"wget {base_url}/{fname} -O {out}")
     else:
         print(f"  {fname} already present, skipping.")
-
-# ── Italian Piper TTS voices ──────────────────────────────────────────────────
-print("\n=== Download Italian Piper voices (paola + riccardo) ===")
-voices_dir = "./models"
-os.makedirs(voices_dir, exist_ok=True)
-_piper_voices = [
-    ("https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/paola/medium",
-     ["it_IT-paola-medium.onnx", "it_IT-paola-medium.onnx.json"]),
-    ("https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/riccardo/x_low",
-     ["it_IT-riccardo-x_low.onnx", "it_IT-riccardo-x_low.onnx.json"]),
-]
-for base, fnames in _piper_voices:
-    for fname in fnames:
-        out = f"{voices_dir}/{fname}"
-        if not os.path.exists(out):
-            run(f"wget '{base}/{fname}' -O {out}")
-        else:
-            print(f"  {fname} already present, skipping.")
 
 # ── datasets ──────────────────────────────────────────────────────────────────
 import io
