@@ -45,15 +45,18 @@ print(f"site-packages: {sp}")
 print("\n=== Fix 2: acoustics (sph_harm -> sph_harm_y for scipy >= 1.15) ===")
 target = sp / "acoustics" / "directivity.py"
 if target.exists():
-    run(
-        f"sed -i 's/from scipy.special import sph_harm/"
-        f"from scipy.special import sph_harm_y as sph_harm/' {target}"
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", "import acoustics; print('acoustics OK')"],
-        capture_output=True, text=True,
-    )
-    print(result.stdout.strip() or result.stderr.strip())
+    if "sph_harm_y" in target.read_text():
+        print("[SKIP] already patched")
+    else:
+        run(
+            f"sed -i 's/from scipy.special import sph_harm/"
+            f"from scipy.special import sph_harm_y as sph_harm/' {target}"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", "import acoustics; print('acoustics OK')"],
+            capture_output=True, text=True,
+        )
+        print(result.stdout.strip() or result.stderr.strip())
 else:
     print(f"[SKIP] {target} not found")
 
@@ -301,6 +304,14 @@ print("\n=== Fix 10: train.py — lazy generate_samples import ===")
 if train_py.exists():
     content = train_py.read_text()
     _pattern = r'( *)from generate_samples import generate_samples'
+    # Repair previously mis-patched version (wrong indentation from str.replace)
+    _bad = '    try:\n    from generate_samples import generate_samples\nexcept ImportError:\n    generate_samples = None'
+    _good = '    try:\n        from generate_samples import generate_samples\n    except ImportError:\n        generate_samples = None'
+    if _bad in content:
+        train_py.write_text(content.replace(_bad, _good))
+        content = train_py.read_text()
+        print("  repaired: fixed bad indentation from previous patch run")
+
     _match = _re.search(_pattern, content)
     if _match and "except ImportError" not in content:
         ind = _match.group(1)
