@@ -38,7 +38,9 @@ tqdm
 # ── data ──────────────────────────────────────────────────────────────────────
 datasets
 huggingface_hub
+mutagen
 pandas
+requests
 
 # ── ONNX / TFLite ─────────────────────────────────────────────────────────────
 ai-edge-litert
