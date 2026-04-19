@@ -123,8 +123,8 @@ python 02_training.py "hey murph"
 | Flag | Default | Description |
 |---|---|---|
 | `--steps` | 200000 | Training steps |
-| `--penalty` | 1000 | False activation weight penalty |
-| `--aug-rounds` | 300 | Augmentation rounds per clip |
+| `--penalty` | 500 | False activation weight penalty |
+| `--aug-rounds` | 150 | Augmentation rounds per clip |
 | `--neg-train` | 200 | Audioset clips for negative train |
 | `--neg-test` | 50 | Audioset clips for negative test |
 | `--neg-speech-train` | 200 | LibriSpeech clips for negative train |
