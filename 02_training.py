@@ -48,9 +48,9 @@ STEPS_ORDER = ["split", "generate", "augment", "train", "convert"]
 parser = argparse.ArgumentParser()
 parser.add_argument("wake_word", help="Wake word phrase (e.g. 'hey murph')")
 parser.add_argument("--rec-dir",    type=Path,  default=Path("./real_rec_prepared"))
-parser.add_argument("--steps",      type=int,   default=100000)
-parser.add_argument("--penalty",    type=int,   default=300)
-parser.add_argument("--aug-rounds", type=int,   default=150)
+parser.add_argument("--steps",      type=int,   default=200000)
+parser.add_argument("--penalty",    type=int,   default=1000)
+parser.add_argument("--aug-rounds", type=int,   default=300)
 parser.add_argument("--neg-train",         type=int, default=200)
 parser.add_argument("--neg-test",          type=int, default=50)
 parser.add_argument("--neg-speech-train",  type=int, default=200,
