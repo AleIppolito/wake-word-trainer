@@ -248,9 +248,4 @@ python -c "import onnxruntime as ort; print(ort.get_available_providers())"
 
 TFLite (for RPi deployment) requires `tensorflow-cpu` (~500 MB). It is included in `requirements.txt`. If you don't need TFLite, the ONNX model is ready after the `train` step.
 
-If `onnx2tf` conversion fails, check the key axis tag:
-```python
-# In 02_training.py convert step:
-run(f"onnx2tf -i {onnx_path} -o {output_dir}/ -kat onnx____Flatten_0")
-# Update -kat value if the ONNX graph changes
-```
+TFLite conversion runs automatically after training via `onnx2tf`.

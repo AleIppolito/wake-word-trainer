@@ -312,7 +312,7 @@ else:
     if not onnx_path.exists():
         print(f"[ERROR] {onnx_path} not found.")
         sys.exit(1)
-    if run(f"onnx2tf -i {onnx_path} -o {output_dir}/ -kat onnx____Flatten_0"):
+    if run(f"onnx2tf -i {onnx_path} -o {output_dir}/"):
         if tflite_tmp.exists():
             tflite_tmp.rename(tflite_final)
         mark_done("convert")
