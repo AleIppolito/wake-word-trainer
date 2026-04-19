@@ -24,7 +24,7 @@ FP_COOLDOWN   = 25     # frames to ignore after a detection (matches EMB_WINDOW)
 CHUNK_SAMPLES = 1280
 MEL_FEATURES  = 32
 MEL_WINDOW    = 76
-EMB_WINDOW    = 25
+EMB_WINDOW    = 16
 EMB_DIM       = 96
 
 # ── Model loading ─────────────────────────────────────────────────────────────
