@@ -157,17 +157,23 @@ N_LIBRISPEECH = 2000
 print(f"\n=== Download LibriSpeech train-clean-100 slice ({N_LIBRISPEECH} clips) ===")
 if not os.path.exists("./librispeech_16k"):
     os.makedirs("./librispeech_16k", exist_ok=True)
+    import io
+    import soundfile as sf
     ds_ls = hf_datasets.load_dataset(
         "openslr/librispeech_asr", "clean", split="train.100",
         streaming=True, trust_remote_code=True,
-    )
+    ).cast_column("audio", hf_datasets.Audio(decode=False))
     saved = 0
     for ex in tqdm(ds_ls, desc="LibriSpeech", total=N_LIBRISPEECH):
         if saved >= N_LIBRISPEECH:
             break
-        audio = ex["audio"]
-        data = audio["array"].astype(np.float32)
-        sr = audio["sampling_rate"]
+        raw = ex["audio"]["bytes"]
+        if not raw:
+            continue
+        data, sr = sf.read(io.BytesIO(raw), always_2d=False)
+        data = data.astype(np.float32)
+        if data.ndim > 1:
+            data = data.mean(axis=1)
         if sr != 16000:
             data = librosa.resample(data, orig_sr=sr, target_sr=16000)
         scipy.io.wavfile.write(
