@@ -143,4 +143,33 @@ if not os.path.exists("./validation_set_features.npy"):
 else:
     print("Validation set already present, skipping.")
 
+# LibriSpeech train-clean-100 slice — real speech negatives for FP suppression.
+# AudioSet covers environmental noise; LibriSpeech covers the harder case:
+# speech that isn't the wake word (sentences starting with "hey", etc.).
+N_LIBRISPEECH = 2000
+print(f"\n=== Download LibriSpeech train-clean-100 slice ({N_LIBRISPEECH} clips) ===")
+if not os.path.exists("./librispeech_16k"):
+    os.makedirs("./librispeech_16k", exist_ok=True)
+    ds_ls = hf_datasets.load_dataset(
+        "openslr/librispeech_asr", "clean", split="train.100",
+        streaming=True, trust_remote_code=True,
+    )
+    saved = 0
+    for ex in tqdm(ds_ls, desc="LibriSpeech", total=N_LIBRISPEECH):
+        if saved >= N_LIBRISPEECH:
+            break
+        audio = ex["audio"]
+        data = audio["array"].astype(np.float32)
+        sr = audio["sampling_rate"]
+        if sr != 16000:
+            data = librosa.resample(data, orig_sr=sr, target_sr=16000)
+        scipy.io.wavfile.write(
+            f"./librispeech_16k/ls_{saved:04d}.wav", 16000,
+            (data * 32767).astype(np.int16),
+        )
+        saved += 1
+    print(f"  {saved} clips saved to ./librispeech_16k/")
+else:
+    print("LibriSpeech already present, skipping.")
+
 print("\n=== Download complete ===")

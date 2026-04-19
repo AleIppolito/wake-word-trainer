@@ -48,8 +48,12 @@ parser.add_argument("--rec-dir",    type=Path,  default=Path("./real_recordings"
 parser.add_argument("--steps",      type=int,   default=100000)
 parser.add_argument("--penalty",    type=int,   default=300)
 parser.add_argument("--aug-rounds", type=int,   default=150)
-parser.add_argument("--neg-train",  type=int,   default=200)
-parser.add_argument("--neg-test",   type=int,   default=50)
+parser.add_argument("--neg-train",         type=int, default=200)
+parser.add_argument("--neg-test",          type=int, default=50)
+parser.add_argument("--neg-speech-train",  type=int, default=200,
+                    help="LibriSpeech clips added to negative train (0 to skip)")
+parser.add_argument("--neg-speech-test",   type=int, default=50,
+                    help="LibriSpeech clips added to negative test (0 to skip)")
 group = parser.add_mutually_exclusive_group()
 group.add_argument("--force", action="store_true")
 group.add_argument("--from", dest="from_step", choices=STEPS_ORDER, metavar="STEP")
@@ -206,7 +210,10 @@ config["target_false_positives_per_hour"]     = 50.0
 config["output_dir"]                          = str(output_dir)
 config["max_negative_weight"]                 = args.penalty
 config["augmentation_rounds"]                 = args.aug_rounds
-config["background_paths"]                    = ["./audioset_16k", "./fma"]
+bg_paths = ["./audioset_16k", "./fma"]
+if Path("./librispeech_16k").exists():
+    bg_paths.append("./librispeech_16k")
+config["background_paths"]                    = bg_paths
 config["false_positive_validation_data_path"] = "validation_set_features.npy"
 config["feature_data_files"]                  = {
     "ACAV100M_sample": "openwakeword_features_ACAV100M_2000_hrs_16bit.npy"
@@ -221,6 +228,7 @@ print(f"Test clips   : {test_count}")
 print(f"Steps        : {args.steps}")
 print(f"FP penalty   : {args.penalty}")
 print(f"Audioset negs: {args.neg_train} train / {args.neg_test} test")
+print(f"Speech negs  : {args.neg_speech_train} train / {args.neg_speech_test} test")
 
 
 # ── Generate (populate negative dirs from audioset) ───────────────────────────
@@ -237,8 +245,21 @@ else:
         shutil.copy(src, neg_train / f"neg_train_{i:04d}.wav")
     for i, src in enumerate(audioset_wavs[args.neg_train:args.neg_train + args.neg_test]):
         shutil.copy(src, neg_test / f"neg_test_{i:04d}.wav")
-    print(f"  {args.neg_train} clips -> {neg_train}")
-    print(f"  {args.neg_test} clips  -> {neg_test}")
+    print(f"  {args.neg_train} audioset clips -> {neg_train}")
+    print(f"  {args.neg_test} audioset clips  -> {neg_test}")
+
+    ls_wavs = sorted(Path("./librispeech_16k").glob("*.wav")) if Path("./librispeech_16k").exists() else []
+    if ls_wavs and (args.neg_speech_train > 0 or args.neg_speech_test > 0):
+        random.shuffle(ls_wavs)
+        for i, src in enumerate(ls_wavs[:args.neg_speech_train]):
+            shutil.copy(src, neg_train / f"neg_speech_train_{i:04d}.wav")
+        for i, src in enumerate(ls_wavs[args.neg_speech_train:args.neg_speech_train + args.neg_speech_test]):
+            shutil.copy(src, neg_test / f"neg_speech_test_{i:04d}.wav")
+        print(f"  {args.neg_speech_train} librispeech clips -> {neg_train}")
+        print(f"  {args.neg_speech_test} librispeech clips  -> {neg_test}")
+    elif args.neg_speech_train > 0:
+        print("  [WARN] librispeech_16k/ not found — run 00_download.py to add speech negatives")
+
     mark_done("generate")
 
 

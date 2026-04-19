@@ -74,6 +74,7 @@ This will:
 | `mit_rirs/` | small | Room impulse responses |
 | `audioset_16k/` | ~1 GB | Background noise (negatives) |
 | `fma/` | ~1 GB | Background music (negatives) |
+| `librispeech_16k/` | ~500 MB | Real speech negatives (FP suppression for speech) |
 
 ---
 
@@ -93,6 +94,8 @@ python 02_training.py "hey murph"
 | `--aug-rounds` | 150 | Augmentation rounds per clip |
 | `--neg-train` | 200 | Audioset clips for negative train |
 | `--neg-test` | 50 | Audioset clips for negative test |
+| `--neg-speech-train` | 200 | LibriSpeech clips for negative train |
+| `--neg-speech-test` | 50 | LibriSpeech clips for negative test |
 | `--force` | — | Re-run all steps from scratch |
 | `--from STEP` | — | Re-run from step: `split\|generate\|augment\|train\|convert` |
 
