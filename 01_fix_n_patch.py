@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 """
-STEP 1 - Remove temporary dependencies and apply patches to installed libraries.
+STEP 1 - Apply patches to installed libraries.
 Run ONCE after: python 00_download.py
 
 Actions:
-  1. pronouncing: uses pkg_resources (removed in 3.12) -> replaced with importlib.resources
   2. acoustics:   sph_harm renamed in scipy >= 1.15 -> sph_harm_y
+  3. piper:       torch.load weights_only=False (torch >= 2.6)  [no-op if piper-sample-generator absent]
+  4. torchaudio:  load() librosa fallback when torchcodec absent (removed in 2.9+)
+  5. torchaudio:  info() soundfile stub (removed in 2.9+)
+  6. train.py:    --convert_to_tflite default='False' bug (string always truthy)
+  7. train.py:    ONNX export — add .eval() + opset 13->18
+  8. train.py:    suppress onnxscript/onnx_ir DEBUG spam
+  9. torch_audiomentations: silence output_type FutureWarning/DeprecationWarning
+ 10. train.py:    make generate_samples import lazy (piper-sample-generator not required)
 """
 
 import subprocess
@@ -31,25 +38,6 @@ def find_site_packages():
 
 sp = find_site_packages()
 print(f"site-packages: {sp}")
-
-# ── 1. pronouncing ────────────────────────────────────────────────────────────
-# ModuleNotFoundError: No module named 'pkg_resources'
-# File: pronouncing/__init__.py line 3: from pkg_resources import resource_stream
-print("\n=== Fix 1: pronouncing (pkg_resources -> importlib.resources) ===")
-target = sp / "pronouncing" / "__init__.py"
-if target.exists():
-    run(
-        f"sed -i 's/from pkg_resources import resource_stream/"
-        f"from importlib.resources import open_binary as resource_stream/' {target}"
-    )
-    run(f"find {sp} -name '*.pyc' -path '*/pronouncing*' -delete")
-    result = subprocess.run(
-        [sys.executable, "-c", "import pronouncing; print('pronouncing OK')"],
-        capture_output=True, text=True,
-    )
-    print(result.stdout.strip() or result.stderr.strip())
-else:
-    print(f"[SKIP] {target} not found")
 
 # ── 2. acoustics ──────────────────────────────────────────────────────────────
 # ImportError: cannot import name 'sph_harm' from 'scipy.special'
@@ -97,9 +85,6 @@ if target.exists():
         print("[SKIP] torchaudio.info already defined")
 else:
     print(f"[SKIP] {target} not found")
-
-print("\n=== Patches applied ===")
-print("Next: python 02_training.py")
 
 # ── train.py patches ──────────────────────────────────────────────────────────
 # openwakeword/openwakeword/train.py has several issues fixed below.
@@ -247,27 +232,26 @@ else:
 
 # ── 3. piper-sample-generator ────────────────────────────────────────────────
 # PyTorch 2.6: torch.load default weights_only=True -> breaks complete models
+# No-op if piper-sample-generator was not cloned (Italian branch uses piper-tts instead).
 print("\n=== Fix 3: piper-sample-generator (torch.load weights_only=False) ===")
-
 target = Path("./piper-sample-generator/generate_samples.py")
-
 if target.exists():
     run(
         f"sed -i 's/torch.load(model_path)/torch.load(model_path, weights_only=False)/' {target}"
     )
-
     result = subprocess.run(
         [sys.executable, "-c", f"import sys; sys.path.append('./piper-sample-generator'); import generate_samples; print('piper patch OK')"],
         capture_output=True, text=True,
     )
     print(result.stdout.strip() or result.stderr.strip())
 else:
-    print(f"[SKIP] {target} not found")
+    print(f"[SKIP] {target} not found — piper-sample-generator not cloned (expected on italian-tts branch)")
 
 # ── 9. torch_audiomentations FutureWarning ───────────────────────────────────
 # output_type=None triggers a FutureWarning; output_type="tensor" a
 # DeprecationWarning. Both branches only warn, no other logic. Replace both
 # with a silent default so behaviour is unchanged but the noise is gone.
+# No-op if upstream (>= 0.12.0) already removed the warning block.
 print("\n=== Fix 9: torch_audiomentations — silence output_type warnings ===")
 _warn_block = (
     '        if output_type is None:\n'
@@ -307,3 +291,28 @@ for _ta_file in [
             print("[SKIP] already patched or pattern not found")
     else:
         print("[SKIP] not found")
+
+# ── 10. train.py: lazy generate_samples import ───────────────────────────────
+# train.py does a module-level import of generate_samples from piper-sample-generator.
+# On the italian-tts branch piper-sample-generator is not cloned; make the import
+# lazy so --augment_clips and --train_model work without it.
+print("\n=== Fix 10: train.py — lazy generate_samples import ===")
+if train_py.exists():
+    content = train_py.read_text()
+    old = "from generate_samples import generate_samples"
+    new = (
+        "try:\n"
+        "    from generate_samples import generate_samples\n"
+        "except ImportError:\n"
+        "    generate_samples = None"
+    )
+    if old in content:
+        train_py.write_text(content.replace(old, new))
+        print("  applied: generate_samples import is now lazy")
+    else:
+        print("  [SKIP] already patched or pattern not found")
+else:
+    print(f"  [SKIP] {train_py} not found")
+
+print("\n=== Patches applied ===")
+print("Next: python 02_training.py")

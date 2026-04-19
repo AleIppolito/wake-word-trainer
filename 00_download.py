@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-STEP 0 - Set up piper-sample-generator and download datasets.
+STEP 0 - Set up openwakeword, download datasets and Italian TTS voice.
 Run ONCE. Skips anything already downloaded.
 
 Prerequisites:
   pip install -r requirements.txt
 
 Output:
-  - ./piper-sample-generator/                           (TTS engine)
   - ./openwakeword/                                     (training framework)
+  - ./models/                                           (Italian piper voice)
   - ./mit_rirs/                                         (Room Impulse Responses)
   - ./audioset_16k/                                     (background noise)
   - ./fma/                                              (background music)
@@ -37,19 +37,6 @@ def fix_locale():
 
 fix_locale()
 
-# ── piper-sample-generator ────────────────────────────────────────────────────
-print("=== Setup piper-sample-generator ===")
-if not os.path.exists("./piper-sample-generator"):
-    run("git clone https://github.com/rhasspy/piper-sample-generator")
-    run("git -C piper-sample-generator checkout 213d4d5")
-    run("wget -O piper-sample-generator/models/en_US-libritts_r-medium.pt "
-        "'https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/en_US-libritts_r-medium.pt'")
-else:
-    print("piper-sample-generator already present, skipping.")
-
-if "piper-sample-generator/" not in sys.path:
-    sys.path.append("piper-sample-generator/")
-
 # ── openwakeword ──────────────────────────────────────────────────────────────
 print("\n=== Setup openwakeword ===")
 if not os.path.exists("./openwakeword"):
@@ -69,6 +56,18 @@ for fname in ["embedding_model.onnx", "embedding_model.tflite",
     out = f"{models_dir}/{fname}"
     if not os.path.exists(out):
         run(f"wget {base_url}/{fname} -O {out}")
+    else:
+        print(f"  {fname} already present, skipping.")
+
+# ── Italian Piper TTS voice ───────────────────────────────────────────────────
+print("\n=== Download Italian Piper voice (it_IT-paola-medium) ===")
+voices_dir = "./models"
+os.makedirs(voices_dir, exist_ok=True)
+it_base = "https://huggingface.co/rhasspy/piper-voices/resolve/main/it/it_IT/paola/medium"
+for fname in ["it_IT-paola-medium.onnx", "it_IT-paola-medium.onnx.json"]:
+    out = f"{voices_dir}/{fname}"
+    if not os.path.exists(out):
+        run(f"wget '{it_base}/{fname}' -O {out}")
     else:
         print(f"  {fname} already present, skipping.")
 

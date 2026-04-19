@@ -11,7 +11,7 @@ Pipeline (each step is skipped if already completed):
   1. Prompt for wake word phrase
   2. Validate recordings
   3. Split 80% train / 20% test  ->  positive_train / positive_test
-  4. Generate adversarial TTS negative clips
+  4. Generate adversarial TTS negative clips (Italian piper voice)
   5. Augment positive clips
   6. Train model
   7. Convert ONNX -> TFLite
@@ -34,6 +34,7 @@ import resource
 import random
 import argparse
 import shutil
+import tempfile
 from pathlib import Path
 
 # ─────────────────────────────────────────────
@@ -41,9 +42,18 @@ from pathlib import Path
 # ─────────────────────────────────────────────
 RECORDINGS_SOURCE_DIR    = "./real_recordings"
 TRAIN_SPLIT              = 0.8
-AUGMENTATION_ROUNDS      = 50
-NUMBER_OF_TRAINING_STEPS = 50000
+AUGMENTATION_ROUNDS      = 150
+NUMBER_OF_TRAINING_STEPS = 100000
 FALSE_ACTIVATION_PENALTY = 300
+
+# Italian Piper TTS voice for adversarial negative generation.
+# Downloaded by 00_download.py to ./models/
+ITALIAN_PIPER_MODEL      = "./models/it_IT-paola-medium.onnx"
+
+# Number of adversarial TTS negative clips to generate.
+# Spread across 5 length scales; piper is called once per scale.
+N_NEGATIVE_TRAIN         = 200
+N_NEGATIVE_TEST          = 50
 # ─────────────────────────────────────────────
 
 STEPS_ORDER = ["split", "generate", "augment", "train", "convert"]
@@ -104,6 +114,8 @@ output_dir = "./my_custom_model"
 model_dir  = os.path.join(output_dir, model_name)
 pos_train  = os.path.join(model_dir, "positive_train")
 pos_test   = os.path.join(model_dir, "positive_test")
+neg_train  = os.path.join(model_dir, "negative_train")
+neg_test   = os.path.join(model_dir, "negative_test")
 onnx_path  = os.path.join(output_dir, f"{model_name}.onnx")
 tflite_final = os.path.join(output_dir, f"{model_name}.tflite")
 tflite_tmp   = os.path.join(output_dir, f"{model_name}_float32.tflite")
@@ -134,15 +146,15 @@ for step in STEPS_ORDER:
         _clear_dir(pos_train)
         _clear_dir(pos_test)
     elif step == "generate":
-        _clear_dir(os.path.join(model_dir, "negative_train"))
-        _clear_dir(os.path.join(model_dir, "negative_test"))
+        _clear_dir(neg_train)
+        _clear_dir(neg_test)
     elif step == "augment":
         # augmented clips live alongside originals; wipe and re-split from source
         _clear_dir(pos_train)
         _clear_dir(pos_test)
         # also clear negative dirs so generate re-runs cleanly if needed
-        _clear_dir(os.path.join(model_dir, "negative_train"))
-        _clear_dir(os.path.join(model_dir, "negative_test"))
+        _clear_dir(neg_train)
+        _clear_dir(neg_test)
         # clear the split sentinel too so files are re-copied
         if sentinels["split"].exists():
             sentinels["split"].unlink()
@@ -194,9 +206,7 @@ if len(all_wavs) < 200:
 print(f"Found {len(all_wavs)} WAV files.")
 
 # ── 3. Create output directories ──────────────────────────────────────────────
-for d in [pos_train, pos_test,
-          os.path.join(model_dir, "negative_train"),
-          os.path.join(model_dir, "negative_test")]:
+for d in [pos_train, pos_test, neg_train, neg_test]:
     os.makedirs(d, exist_ok=True)
 
 # ── 4. Split and copy ─────────────────────────────────────────────────────────
@@ -271,16 +281,61 @@ print(f"FP penalty:        {FALSE_ACTIVATION_PENALTY}")
 print(f"Target accuracy:   0.7  (early stop)")
 print(f"Target recall:     {config['target_recall']}  (early stop)")
 
-# ── 6. Generate adversarial negative clips ────────────────────────────────────
+
+# ── 6. Generate adversarial negative clips (Italian piper TTS) ───────────────
+def generate_italian_negatives(dest_dir: str, n_clips: int, phrase: str) -> bool:
+    """
+    Generate adversarial TTS negatives using the Italian piper voice.
+    Runs piper CLI (installed via piper-tts) with 5 length scales.
+    Each scale gets an equal share of n_clips; outputs land in dest_dir.
+    Returns True if at least one clip was generated.
+    """
+    if not os.path.exists(ITALIAN_PIPER_MODEL):
+        print(f"[ERROR] Italian piper model not found: {ITALIAN_PIPER_MODEL}")
+        print("Run 00_download.py first.")
+        return False
+
+    length_scales = [0.75, 0.85, 1.0, 1.15, 1.25]
+    per_scale = max(1, n_clips // len(length_scales))
+    remainder = n_clips - per_scale * len(length_scales)
+
+    total = 0
+    for i, scale in enumerate(length_scales):
+        count = per_scale + (1 if i < remainder else 0)
+        text_input = (phrase + "\n") * count
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = subprocess.run(
+                f"piper --model {ITALIAN_PIPER_MODEL} --length-scale {scale} --output_dir {tmpdir}/",
+                input=text_input.encode(),
+                shell=True,
+                capture_output=True,
+            )
+            if result.returncode != 0:
+                print(f"  [WARN] piper scale={scale}: {result.stderr.decode()[:200]}")
+                continue
+
+            for wav in sorted(Path(tmpdir).glob("*.wav")):
+                dst = os.path.join(dest_dir, f"neg_{total:04d}.wav")
+                shutil.move(str(wav), dst)
+                total += 1
+
+    print(f"  {total} Italian TTS negatives -> {dest_dir}")
+    return total > 0
+
+
 if step_done("generate"):
     print("\n[SKIP] generate - adversarial negative clips already generated.")
 else:
-    print("\n=== [generate] Adversarial negative clips (TTS) ===")
-    if run(f"{sys.executable} openwakeword/openwakeword/train.py --training_config {model_name}.yaml --generate_clips"):
+    print("\n=== [generate] Adversarial negative clips (Italian piper TTS) ===")
+    ok_train = generate_italian_negatives(neg_train, N_NEGATIVE_TRAIN, TARGET_WORD)
+    ok_test  = generate_italian_negatives(neg_test,  N_NEGATIVE_TEST,  TARGET_WORD)
+    if ok_train and ok_test:
         mark_done("generate")
     else:
-        print("[ERROR] generate step failed. Fix the issue and re-run.")
+        print("[ERROR] generate step failed. Check piper installation and model path.")
         sys.exit(1)
+
 
 # ── 7. Augment ────────────────────────────────────────────────────────────────
 if step_done("augment"):

@@ -5,14 +5,14 @@
 #
 # Prerequisites on the VM:
 #   - Python 3.12
-#   - CUDA 13.0 (torch 2.10.0+cu130)
+#   - CUDA 13.0 (torch 2.11.0+cu130)
 #   - ~200 GB free disk space for datasets + venv + training
 #
 # What it does:
 #   1. Checks Python 3.12 and creates the venv
-#   2. pip install -r requirements.txt (--no-deps)
-#   3. 00_download.py - clones repos + downloads datasets (~17 GB)
-#   4. 01_fix_n_patch.py - patches pronouncing and acoustics
+#   2. pip install -r requirements.txt
+#   3. 00_download.py - clones openwakeword + downloads datasets + Italian voice
+#   4. 01_fix_n_patch.py - patches acoustics, torchaudio, openwakeword/train.py
 #
 # After:
 #   Put your recordings in ./real_recordings/ and run:
@@ -45,7 +45,7 @@ echo "=== Venv activated: $(which python) ==="
 echo ""
 echo "=== pip install -r requirements.txt ==="
 pip install --upgrade pip -q
-pip install --no-deps -r requirements.txt
+pip install -r requirements.txt
 
 # ── 4. Clone repos + download datasets ───────────────────────────────────────
 echo ""
