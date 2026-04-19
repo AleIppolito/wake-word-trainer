@@ -44,6 +44,7 @@ tf-keras
 # ── ONNX / TFLite ─────────────────────────────────────────────────────────────
 ai-edge-litert
 onnx-graphsurgeon
+psutil
 onnx
 onnx2tf
 onnxoptimizer
