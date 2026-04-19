@@ -378,3 +378,49 @@ else:
     else:
         print("[ERROR] convert step failed. Check the onnx2tf output.")
         sys.exit(1)
+
+
+# ── Download instructions ─────────────────────────────────────────────────────
+def _get_ssh_port() -> str:
+    try:
+        for line in Path("/etc/ssh/sshd_config").read_text().splitlines():
+            line = line.strip()
+            if line.startswith("Port "):
+                return line.split()[1]
+    except Exception:
+        pass
+    return "22"
+
+
+def _get_ip() -> str:
+    try:
+        result = subprocess.run(
+            "curl -s --max-time 3 ifconfig.me",
+            shell=True, capture_output=True, text=True,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "<server-ip>"
+
+
+if os.path.exists(onnx_path):
+    _port = _get_ssh_port()
+    _ip   = _get_ip()
+    _cwd  = os.path.abspath(output_dir)
+    print(f"\n{'═' * 60}")
+    print(f"  Models ready. To download from your local machine:")
+    print(f"")
+    print(f"  scp -P {_port} root@{_ip}:{_cwd}/{model_name}.onnx .")
+    print(f"  scp -P {_port} root@{_ip}:{_cwd}/{model_name}.tflite .")
+    print(f"  scp -P {_port} root@{_ip}:{_cwd}/{model_name}_float16.tflite .")
+    print(f"{'═' * 60}")
