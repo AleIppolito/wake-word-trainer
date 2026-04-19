@@ -2,6 +2,7 @@
 import sys
 import random
 import numpy as np
+import soundfile as sf
 import librosa
 import onnxruntime as ort
 from pathlib import Path
@@ -58,8 +59,12 @@ def run_pipeline(wav_path, count_mode=False):
       Activations are threshold crossings with FP_COOLDOWN frame suppression,
       matching the real detection behaviour in murph.
     """
-    audio, _ = librosa.load(str(wav_path), sr=16000, mono=True)
-    audio = np.clip(audio * 32767.0, -32768, 32767).astype(np.float32)
+    data, sr = sf.read(str(wav_path), always_2d=False)
+    if sr != 16000:
+        data = librosa.resample(data.astype(np.float32), orig_sr=sr, target_sr=16000)
+    if data.ndim > 1:
+        data = data.mean(axis=1)
+    audio = np.clip(data.astype(np.float32) * 32767.0, -32768, 32767)
     duration_sec = len(audio) / 16000
 
     mel_buf, emb_buf, scores = [], [], []
