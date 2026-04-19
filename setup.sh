@@ -51,12 +51,15 @@ fi
 
 # ── 3. System deps (cuBLAS for onnxruntime-gpu CUDA provider) ────────────────
 echo ""
-echo "=== System deps: libcublas-12-9 ==="
-if dpkg -l libcublas-12-9 &>/dev/null; then
-    echo "    already installed"
-else
-    apt-get install -y libcublas-12-9 || echo "[WARN] apt install failed — CUDA provider may fall back to CPU"
-fi
+echo "=== System deps: CUDA 12 libs for onnxruntime CUDAExecutionProvider ==="
+apt-get install -y \
+    libcublas-12-9 \
+    libcurand-12-9 \
+    libcufft-12-9 \
+    libcusolver-12-9 \
+    libcusparse-12-9 \
+    libcudnn9-cuda-12 \
+    || echo "[WARN] apt install failed — CUDA provider may fall back to CPU"
 
 # ── 4. pip install ────────────────────────────────────────────────────────────
 echo ""
